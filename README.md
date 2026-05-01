@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 <p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
 
 <p align="center">
@@ -57,3 +58,38 @@ If you discover a security vulnerability within Laravel, please send an e-mail t
 ## License
 
 The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+=======
+# 🏨 Sistema Hotelero - Brisas de Mayo
+
+## 🚀 Tecnologías
+- Laravel (API)
+- React + Vite
+- TailwindCSS
+- MySQL
+- Sanctum (Auth)
+
+## ⚙️ Instalación
+
+### Backend
+cd backend
+cp .env.example .env
+composer install
+php artisan key:generate
+php artisan migrate
+php artisan serve
+
+### Frontend
+cd frontend
+npm install
+npm run dev
+
+## 🔐 Usuarios de prueba
+admin@brisas.com / password123
+recepcion@brisas.com / password123
+cliente@brisas.com / password123
+
+## 📌 Estado del proyecto
+✔ Sprint 0 (Setup)
+✔ Sprint 1 (Autenticación)
+⏳ Sprint 2 (Habitaciones)
+>>>>>>> 52e90ca3031362c1b73b6ab3b1f8c956bb9ae4e8
