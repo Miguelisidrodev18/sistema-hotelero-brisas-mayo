@@ -3,7 +3,7 @@ import { Calendar, MapPin } from 'lucide-react'
 
 export default function Hero() {
   return (
-    <section id="inicio" className="relative h-screen min-h-[600px] flex flex-col justify-center overflow-hidden">
+    <section id="inicio" className="relative w-full h-screen min-h-[600px] flex flex-col justify-center overflow-hidden">
 
       {/* ── Video de fondo ── */}
       <video
@@ -23,7 +23,7 @@ export default function Hero() {
       <div className="absolute bottom-0 left-0 right-0 h-48 bg-gradient-to-t from-black/60 to-transparent" />
 
       {/* ── Contenido ── */}
-      <div className="relative z-10 max-w-7xl mx-auto px-6 lg:px-8 w-full">
+      <div className="relative z-10 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
 
         {/* Ubicación */}
         <div className="flex items-center gap-2 mb-5 anim-fade-in">

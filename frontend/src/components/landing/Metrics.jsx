@@ -28,7 +28,7 @@ const TESTIMONIALS = [
 export default function Metrics() {
   return (
     <>
-      <section id="metricas" className="py-20 bg-brand-brown relative overflow-hidden">
+      <section id="metricas" className="w-full py-20 bg-brand-brown relative overflow-hidden">
         <div className="absolute inset-0 opacity-[0.04]"
           style={{ backgroundImage: 'repeating-linear-gradient(45deg, #fff 0, #fff 1px, transparent 0, transparent 50%)', backgroundSize: '20px 20px' }} />
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -46,7 +46,7 @@ export default function Metrics() {
         </div>
       </section>
 
-      <section className="py-24 bg-brand-cream">
+      <section className="w-full py-24 bg-brand-cream">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16 anim-fade-up">
             <p className="text-brand-orange text-xs font-bold tracking-widest uppercase mb-3">Testimonios</p>

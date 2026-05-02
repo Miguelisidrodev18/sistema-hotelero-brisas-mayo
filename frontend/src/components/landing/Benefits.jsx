@@ -33,7 +33,7 @@ const BENEFITS = [
 
 export default function Benefits() {
   return (
-    <section id="beneficios" className="py-24 bg-brand-cream">
+    <section id="beneficios" className="w-full py-24 bg-brand-cream">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
 
         <div className="text-center mb-16 anim-fade-up">

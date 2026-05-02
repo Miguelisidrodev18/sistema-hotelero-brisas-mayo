@@ -45,7 +45,7 @@ const ROOMS = [
 
 export default function FeaturedRooms() {
   return (
-    <section id="habitaciones" className="py-24 bg-white">
+    <section id="habitaciones" className="w-full py-24 bg-white">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
 
         <div className="text-center mb-16 anim-fade-up">

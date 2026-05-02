@@ -40,7 +40,7 @@ const AMENITY_ICONS = {
 
 export default function Sedes() {
   return (
-    <section id="sedes" className="py-24 bg-white">
+    <section id="sedes" className="w-full py-24 bg-white">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
 
         <div className="text-center mb-16 anim-fade-up">

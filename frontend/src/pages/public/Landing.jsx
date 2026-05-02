@@ -7,40 +7,42 @@ import FeaturedRooms from '../../components/landing/FeaturedRooms'
 import Metrics       from '../../components/landing/Metrics'
 import Footer        from '../../components/landing/Footer'
 
+/*
+  Layout:
+  ┌────────────────────┐  ← Hero (h-screen, video bg)
+  │                    │
+  │   Título + CTAs    │
+  │                    │
+  │  ┌──────────────┐  │  ← SearchBar: -mt saca la mitad fuera del Hero
+  └──┤  SEARCHBAR   ├──┘
+     └──────────────┘      el -mt-10 en el wrapper lo superpone al Hero
+  ┌────────────────────┐  ← pt-10 en Benefits compensa el overlap
+  │   Benefits …       │
+*/
 export default function Landing() {
   return (
-    <div className="overflow-x-hidden">
+    <div className="w-full">
       <Navbar />
 
-      {/* ─── Hero + SearchBar flotante ─────────────────────────────── */}
-      {/*
-        El wrapper tiene `relative` y el hero ocupa h-screen.
-        La SearchBar está absolute en bottom-0 con translate-y-1/2,
-        quedando mitad dentro del hero y mitad fuera → efecto flotante.
-        El contenido de abajo tiene pt suficiente para no quedar tapado.
-      */}
-      <div className="relative">
-        <Hero />
+      {/* ── Hero ──────────────────────────────────────────── */}
+      <Hero />
 
-        {/* SearchBar flotante: bottom-0 + translate-y-1/2 = flota entre secciones */}
-        <div className="absolute bottom-0 left-0 right-0 z-30
-                        px-4 sm:px-8 lg:px-12
-                        translate-y-1/2">
-          <div className="max-w-6xl mx-auto">
-            <SearchBar />
-          </div>
+      {/* ── SearchBar flotante (negative-margin approach) ── */}
+      {/* -mt sube el SearchBar para que solape el borde del Hero */}
+      <div className="relative z-30 -mt-10 w-full px-4 sm:px-6 lg:px-8">
+        <div className="max-w-6xl mx-auto">
+          <SearchBar />
         </div>
       </div>
 
-      {/* Espacio para compensar la mitad del SearchBar que sobresale */}
-      <div className="h-[70px] sm:h-[60px] bg-white" />
-
-      {/* ─── Secciones ─────────────────────────────────────────────── */}
-      <Benefits />
-      <Sedes />
-      <FeaturedRooms />
-      <Metrics />
-      <Footer />
+      {/* ── Secciones (pt compensa el overlap del SearchBar) ── */}
+      <div className="pt-10">
+        <Benefits />
+        <Sedes />
+        <FeaturedRooms />
+        <Metrics />
+        <Footer />
+      </div>
     </div>
   )
 }
