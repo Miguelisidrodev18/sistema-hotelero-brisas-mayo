@@ -1,61 +1,131 @@
-import { Waves, Coffee, Droplets, ShieldCheck, Car, Tv } from 'lucide-react'
+import { Waves, Coffee, Droplets, ShieldCheck } from 'lucide-react'
+import RevealSection from '../ui/RevealSection'
 
 const BENEFITS = [
   {
     icon: Waves,
-    bg: 'bg-teal-50', color: 'text-teal-600', border: 'border-teal-100',
+    gradient: 'linear-gradient(135deg, #e0f7f3 0%, #b2dfdb 100%)',
+    iconColor: '#0d9488',
+    glow: 'rgba(13,148,136,0.1)',
     title: 'Vista a cascadas y laguna',
     desc: 'Habitaciones con vista directa a las Cascadas de Cabracancha o la Laguna de Mayo.',
-    delay: 'delay-100',
   },
   {
     icon: Coffee,
-    bg: 'bg-amber-50', color: 'text-amber-600', border: 'border-amber-100',
+    gradient: 'linear-gradient(135deg, #fef3e2 0%, #fde68a 100%)',
+    iconColor: '#d97706',
+    glow: 'rgba(217,119,6,0.1)',
     title: 'Desayuno incluido',
     desc: 'Todas las habitaciones incluyen desayuno. Empieza el día con energía en medio de la naturaleza.',
-    delay: 'delay-200',
   },
   {
     icon: Droplets,
-    bg: 'bg-blue-50', color: 'text-blue-500', border: 'border-blue-100',
+    gradient: 'linear-gradient(135deg, #e0f2fe 0%, #93c5fd 100%)',
+    iconColor: '#3b82f6',
+    glow: 'rgba(59,130,246,0.1)',
     title: 'Baño privado agua caliente',
     desc: 'Agua tibia caliente disponible las 24 horas en tu baño privado.',
-    delay: 'delay-300',
   },
   {
     icon: ShieldCheck,
-    bg: 'bg-green-50', color: 'text-green-600', border: 'border-green-100',
+    gradient: 'linear-gradient(135deg, #dcfce7 0%, #86efac 100%)',
+    iconColor: '#16a34a',
+    glow: 'rgba(22,163,74,0.1)',
     title: 'Reserva segura',
     desc: 'Confirmación inmediata online. Aceptamos pago en soles y dólares al tipo de cambio del día.',
-    delay: 'delay-400',
   },
 ]
 
 export default function Benefits() {
   return (
-    <section id="beneficios" className="w-full py-24 bg-brand-cream">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <section id="beneficios" style={{
+      width: '100%',
+      padding: '96px 0',
+      background: '#FDF6ED',
+    }}>
+      <div style={{ maxWidth: 1280, margin: '0 auto', padding: '0 1.5rem' }}>
 
-        <div className="text-center mb-16 anim-fade-up">
-          <p className="text-brand-orange text-xs font-bold tracking-widest uppercase mb-3">¿Por qué elegirnos?</p>
-          <h2 className="text-3xl sm:text-4xl font-bold text-brand-brown">
+        <RevealSection style={{ textAlign: 'center', marginBottom: 64 }}>
+          <p style={{
+            color: '#F5922E',
+            fontSize: '0.7rem',
+            fontWeight: 700,
+            letterSpacing: '0.15em',
+            textTransform: 'uppercase',
+            marginBottom: 12,
+          }}>¿Por qué elegirnos?</p>
+          <h2 style={{
+            fontSize: 'clamp(1.8rem, 4vw, 2.5rem)',
+            fontWeight: 800,
+            color: '#3D1A06',
+            margin: 0,
+          }}>
             Todo lo que necesitas para descansar
           </h2>
-          <div className="w-16 h-1 bg-brand-orange mx-auto mt-4 rounded-full" />
-        </div>
+          <div className="section-divider" />
+        </RevealSection>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-          {BENEFITS.map(({ icon: Icon, bg, color, border, title, desc, delay }) => (
-            <div key={title}
-              className={`bg-white rounded-2xl p-7 card-hover border ${border} flex flex-col gap-4 anim-fade-up ${delay}`}>
-              <div className={`w-14 h-14 ${bg} rounded-2xl flex items-center justify-center`}>
-                <Icon size={26} className={color} />
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 260px), 1fr))',
+          gap: 24,
+        }}>
+          {BENEFITS.map(({ icon: Icon, gradient, iconColor, glow, title, desc }, i) => (
+            <RevealSection key={title} style={{ transitionDelay: `${i * 0.1}s` }}>
+              <div className="card-hover" style={{
+                background: 'white',
+                borderRadius: 20,
+                padding: 28,
+                border: '1px solid rgba(245,146,46,0.08)',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 16,
+                height: '100%',
+                position: 'relative',
+                overflow: 'hidden',
+              }}>
+                {/* Decorative glow */}
+                <div style={{
+                  position: 'absolute',
+                  top: -30,
+                  right: -30,
+                  width: 120,
+                  height: 120,
+                  borderRadius: '50%',
+                  background: glow,
+                  filter: 'blur(30px)',
+                  pointerEvents: 'none',
+                }} />
+
+                <div style={{
+                  width: 56,
+                  height: 56,
+                  borderRadius: 16,
+                  background: gradient,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  position: 'relative',
+                }}>
+                  <Icon size={26} style={{ color: iconColor }} />
+                </div>
+                <div>
+                  <h3 style={{
+                    fontWeight: 700,
+                    color: '#3D1A06',
+                    marginBottom: 8,
+                    lineHeight: 1.3,
+                    fontSize: '1rem',
+                  }}>{title}</h3>
+                  <p style={{
+                    fontSize: '0.85rem',
+                    color: '#6b7280',
+                    lineHeight: 1.7,
+                    margin: 0,
+                  }}>{desc}</p>
+                </div>
               </div>
-              <div>
-                <h3 className="font-bold text-brand-brown mb-2 leading-snug">{title}</h3>
-                <p className="text-sm text-gray-500 leading-relaxed">{desc}</p>
-              </div>
-            </div>
+            </RevealSection>
           ))}
         </div>
       </div>

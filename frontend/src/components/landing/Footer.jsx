@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
 import { Phone, Mail, MapPin } from 'lucide-react'
+import RevealSection from '../ui/RevealSection'
 
 const SocialIcons = {
   Facebook: () => (
@@ -38,66 +39,171 @@ const LINKS = {
 
 export default function Footer() {
   return (
-    <footer id="footer" className="w-full bg-brand-dark text-white/60">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-16 pb-8">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-10 pb-12 border-b border-white/10">
+    <footer id="footer" style={{
+      width: '100%',
+      background: 'linear-gradient(135deg, #1E0D03 0%, #0f0702 100%)',
+      color: 'rgba(255,255,255,0.5)',
+    }}>
+      <div style={{ maxWidth: 1280, margin: '0 auto', padding: '64px 1.5rem 32px' }}>
 
-          {/* Brand con logo */}
-          <div className="lg:col-span-1">
-            <img src="/images/Logo-hotel.jpeg" alt="Brisas de Mayo"
-              className="h-16 w-auto object-contain mb-4 rounded opacity-90" />
-            <p className="text-sm leading-relaxed mb-5">
-              Experiencias únicas frente al mar. Tu descanso es nuestra prioridad desde 2010.
-            </p>
-            <div className="flex gap-3">
-              {[SocialIcons.Facebook, SocialIcons.Instagram, SocialIcons.X].map((Icon, i) => (
-                <a key={i} href="#"
-                  className="w-9 h-9 bg-white/5 hover:bg-brand-orange hover:text-white text-white/60 rounded-full flex items-center justify-center transition-all">
-                  <Icon />
-                </a>
-              ))}
-            </div>
-          </div>
+        <RevealSection>
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 220px), 1fr))',
+            gap: 32,
+            paddingBottom: 48,
+            borderBottom: '1px solid rgba(255,255,255,0.08)',
+          }}>
 
-          {/* Links */}
-          {Object.entries(LINKS).map(([section, links]) => (
-            <div key={section}>
-              <h4 className="text-white font-semibold mb-5 text-sm uppercase tracking-wide">{section}</h4>
-              <ul className="flex flex-col gap-3">
-                {links.map(({ label, href }) => (
-                  <li key={label}>
-                    {href.startsWith('/') ? (
-                      <Link to={href} className="text-sm hover:text-brand-orange transition-colors">{label}</Link>
-                    ) : (
-                      <a href={href} className="text-sm hover:text-brand-orange transition-colors">{label}</a>
-                    )}
-                  </li>
+            {/* Brand con logo */}
+            <div>
+              <img src="/images/Logo-hotel.jpeg" alt="Brisas de Mayo"
+                style={{
+                  height: 56,
+                  width: 'auto',
+                  objectFit: 'contain',
+                  marginBottom: 16,
+                  borderRadius: 8,
+                  opacity: 0.9,
+                  filter: 'drop-shadow(0 2px 8px rgba(0,0,0,0.3))',
+                }} />
+              <p style={{
+                fontSize: '0.85rem',
+                lineHeight: 1.7,
+                marginBottom: 20,
+              }}>
+                Experiencias únicas frente a la naturaleza. Tu descanso es nuestra prioridad.
+              </p>
+              <div style={{ display: 'flex', gap: 10 }}>
+                {[SocialIcons.Facebook, SocialIcons.Instagram, SocialIcons.X].map((Icon, i) => (
+                  <a key={i} href="#"
+                    style={{
+                      width: 36, height: 36,
+                      background: 'rgba(255,255,255,0.05)',
+                      borderRadius: '50%',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: 'rgba(255,255,255,0.5)',
+                      textDecoration: 'none',
+                      transition: 'all 0.3s ease',
+                      border: '1px solid rgba(255,255,255,0.05)',
+                    }}
+                    onMouseEnter={e => {
+                      e.currentTarget.style.background = 'rgba(245,146,46,0.2)'
+                      e.currentTarget.style.color = '#F5922E'
+                      e.currentTarget.style.borderColor = 'rgba(245,146,46,0.3)'
+                      e.currentTarget.style.transform = 'translateY(-2px)'
+                    }}
+                    onMouseLeave={e => {
+                      e.currentTarget.style.background = 'rgba(255,255,255,0.05)'
+                      e.currentTarget.style.color = 'rgba(255,255,255,0.5)'
+                      e.currentTarget.style.borderColor = 'rgba(255,255,255,0.05)'
+                      e.currentTarget.style.transform = 'translateY(0)'
+                    }}
+                  >
+                    <Icon />
+                  </a>
                 ))}
+              </div>
+            </div>
+
+            {/* Links */}
+            {Object.entries(LINKS).map(([section, links]) => (
+              <div key={section}>
+                <h4 style={{
+                  color: 'white',
+                  fontWeight: 600,
+                  marginBottom: 20,
+                  fontSize: '0.8rem',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.1em',
+                }}>{section}</h4>
+                <ul style={{
+                  listStyle: 'none',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 12,
+                  padding: 0,
+                  margin: 0,
+                }}>
+                  {links.map(({ label, href }) => (
+                    <li key={label}>
+                      {href.startsWith('/') ? (
+                        <Link to={href}
+                          style={{
+                            color: 'rgba(255,255,255,0.5)',
+                            fontSize: '0.85rem',
+                            textDecoration: 'none',
+                            transition: 'color 0.2s ease',
+                          }}
+                          onMouseEnter={e => e.currentTarget.style.color = '#F5922E'}
+                          onMouseLeave={e => e.currentTarget.style.color = 'rgba(255,255,255,0.5)'}
+                        >{label}</Link>
+                      ) : (
+                        <a href={href}
+                          style={{
+                            color: 'rgba(255,255,255,0.5)',
+                            fontSize: '0.85rem',
+                            textDecoration: 'none',
+                            transition: 'color 0.2s ease',
+                          }}
+                          onMouseEnter={e => e.currentTarget.style.color = '#F5922E'}
+                          onMouseLeave={e => e.currentTarget.style.color = 'rgba(255,255,255,0.5)'}
+                        >{label}</a>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+
+            {/* Contacto */}
+            <div>
+              <h4 style={{
+                color: 'white',
+                fontWeight: 600,
+                marginBottom: 20,
+                fontSize: '0.8rem',
+                textTransform: 'uppercase',
+                letterSpacing: '0.1em',
+              }}>Contacto</h4>
+              <ul style={{
+                listStyle: 'none',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 16,
+                fontSize: '0.85rem',
+                padding: 0,
+                margin: 0,
+              }}>
+                <li style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+                  <MapPin size={15} style={{ color: '#F5922E', marginTop: 2, flexShrink: 0 }} />
+                  Huancaya, Yauyos — Frente a las cascadas y laguna
+                </li>
+                <li style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <Phone size={15} style={{ color: '#F5922E', flexShrink: 0 }} />
+                  +51 999 123 456
+                </li>
+                <li style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <Mail size={15} style={{ color: '#F5922E', flexShrink: 0 }} />
+                  contacto@brisasdmayo.com
+                </li>
               </ul>
             </div>
-          ))}
-
-          {/* Contacto */}
-          <div>
-            <h4 className="text-white font-semibold mb-5 text-sm uppercase tracking-wide">Contacto</h4>
-            <ul className="flex flex-col gap-4 text-sm">
-              <li className="flex items-start gap-3">
-                <MapPin size={15} className="text-brand-orange mt-0.5 shrink-0" />
-                Av. Costa Verde 123, Sede Principal
-              </li>
-              <li className="flex items-center gap-3">
-                <Phone size={15} className="text-brand-orange shrink-0" />
-                +51 999 123 456
-              </li>
-              <li className="flex items-center gap-3">
-                <Mail size={15} className="text-brand-orange shrink-0" />
-                contacto@brisasdmayo.com
-              </li>
-            </ul>
           </div>
-        </div>
+        </RevealSection>
 
-        <div className="pt-6 flex flex-col sm:flex-row justify-between items-center gap-2 text-xs text-white/30">
+        <div style={{
+          paddingTop: 24,
+          display: 'flex',
+          flexWrap: 'wrap',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          gap: 8,
+          fontSize: '0.7rem',
+          color: 'rgba(255,255,255,0.25)',
+        }}>
           <p>© {new Date().getFullYear()} Hotel Brisas de Mayo. Todos los derechos reservados.</p>
           <p>Desarrollado con React + Laravel</p>
         </div>
