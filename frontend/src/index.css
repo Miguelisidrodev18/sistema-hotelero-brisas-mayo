@@ -24,20 +24,20 @@
 
 html {
   scroll-behavior: smooth;
-  width: 100%;
-  overflow-x: hidden;   /* evita scroll horizontal fantasma */
+  /* NO overflow-x hidden aquí: rompe position:fixed y 100vh en Safari */
 }
 
 body {
   font-family: var(--font-sans);
   color: #1a0a02;
   width: 100%;
-  overflow-x: hidden;
+  max-width: 100vw;
+  overflow-x: hidden;   /* previene scroll horizontal sin romper vh */
 }
 
 #root {
   width: 100%;
-  min-height: 100vh;
+  /* Sin max-width fijo: dejar que cada sección maneje su propio max-w */
 }
 
 /* ── Animaciones ───────────────────────────── */

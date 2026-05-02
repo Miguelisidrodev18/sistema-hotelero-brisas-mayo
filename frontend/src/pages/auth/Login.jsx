@@ -20,29 +20,15 @@ const BRAND = {
   cream:  '#FDF6ED',
 }
 
-function WaveLogo({ size = 52 }) {
-  return (
-    <svg width={size} height={size * 0.65} viewBox="0 0 52 34" fill="none">
-      <path d="M4 10 Q13 2 22 10 Q31 18 40 10 Q45 6 50 10" stroke={BRAND.gold}   strokeWidth="2.5" strokeLinecap="round" fill="none"/>
-      <path d="M4 18 Q13 10 22 18 Q31 26 40 18 Q45 14 50 18" stroke={BRAND.orange} strokeWidth="2"   strokeLinecap="round" fill="none" opacity="0.7"/>
-      <path d="M4 26 Q13 18 22 26 Q31 34 40 26 Q45 22 50 26" stroke={BRAND.gold}   strokeWidth="1.5" strokeLinecap="round" fill="none" opacity="0.4"/>
-    </svg>
-  )
-}
-
-function BottomWave() {
-  return (
-    <svg viewBox="0 0 1440 80" preserveAspectRatio="none" style={{ height: 56, width: '100%', opacity: 0.15 }}>
-      <path d="M0,40 C240,80 480,0 720,40 C960,80 1200,0 1440,40 L1440,80 L0,80 Z" fill={BRAND.gold}/>
-    </svg>
-  )
-}
-
 function Divider() {
   return (
-    <div className="flex items-center gap-3 mt-10">
+    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginTop: '2rem' }}>
       <div style={{ flex: 1, height: 1, background: `linear-gradient(to right, transparent, ${BRAND.gold})` }}/>
-      <WaveLogo size={22}/>
+      {/* Icono de cascada/montaña */}
+      <svg width="22" height="16" viewBox="0 0 22 16" fill="none">
+        <path d="M1 14 L6 5 L11 10 L14 6 L21 14" stroke={BRAND.gold} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
+        <path d="M8 14 Q9 10 10 14" stroke={BRAND.gold} strokeWidth="1" strokeLinecap="round" fill="none" opacity="0.5"/>
+      </svg>
       <div style={{ flex: 1, height: 1, background: `linear-gradient(to left, transparent, ${BRAND.gold})` }}/>
     </div>
   )
@@ -73,30 +59,24 @@ export default function Login() {
     }
   }
 
-  const inputStyle = {
-    borderColor: BRAND.gold,
-    background:  'white',
-    color:       BRAND.dark,
-    outline:     'none',
-  }
-
-  function addFocus(e)    { e.target.style.boxShadow = `0 0 0 3px rgba(212,168,67,0.28)` }
+  function addFocus(e)    { e.target.style.boxShadow = '0 0 0 3px rgba(212,168,67,0.28)' }
   function removeFocus(e) { e.target.style.boxShadow = 'none' }
 
   return (
-    <div style={{ minHeight: '100vh', display: 'flex', fontFamily: "'Inter', system-ui, sans-serif" }}>
+    <div style={{ height: '100vh', overflow: 'hidden', display: 'flex', fontFamily: "'Inter', system-ui, sans-serif" }}>
 
       {/* ── Panel izquierdo – branding ───────────── */}
       <div
         className="hidden lg:flex"
         style={{
           width: '58%',
+          height: '100%',
           position: 'relative',
           flexDirection: 'column',
           alignItems: 'center',
           justifyContent: 'center',
           overflow: 'hidden',
-          background: `linear-gradient(145deg, ${BRAND.dark} 0%, ${BRAND.brown} 40%, ${BRAND.wood} 75%, ${BRAND.orange} 100%)`,
+          background: `linear-gradient(145deg, ${BRAND.dark} 0%, ${BRAND.brown} 40%, ${BRAND.wood} 75%, #5C3D1A 100%)`,
         }}
       >
         {/* Hero image */}
@@ -104,18 +84,18 @@ export default function Login() {
           position: 'absolute', inset: 0,
           backgroundImage: `url('/src/assets/hero.png')`,
           backgroundSize: 'cover', backgroundPosition: 'center',
-          opacity: 0.28,
+          opacity: 0.30,
         }}/>
         {/* Gradient overlay */}
         <div style={{
           position: 'absolute', inset: 0,
-          background: `linear-gradient(to bottom, rgba(30,13,3,0.72) 0%, rgba(61,26,6,0.45) 50%, rgba(30,13,3,0.80) 100%)`,
+          background: `linear-gradient(to bottom, rgba(30,13,3,0.70) 0%, rgba(61,26,6,0.40) 50%, rgba(30,13,3,0.78) 100%)`,
         }}/>
 
         {/* Content */}
         <div style={{ position: 'relative', zIndex: 10, textAlign: 'center', padding: '0 3.5rem', maxWidth: 480 }}>
 
-          {/* Logo emblem */}
+          {/* Logo circular */}
           <div style={{
             width: 120, height: 120, borderRadius: '50%',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -138,41 +118,49 @@ export default function Login() {
             Brisas de Mayo
           </h1>
 
-          {/* Golden rule */}
           <div style={{
             height: 2, width: 140, margin: '0 auto 1.25rem',
             background: `linear-gradient(to right, transparent, ${BRAND.gold}, transparent)`,
             borderRadius: 9999,
           }}/>
 
+          {/* Ubicación */}
+          <p style={{ color: 'rgba(255,255,255,0.55)', fontSize: '0.8rem', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: '0.5rem' }}>
+            Huancaya · Yauyos · Lima
+          </p>
+
           <p style={{ color: '#F5C87A', fontSize: '1.05rem', fontStyle: 'italic', marginBottom: '3rem' }}>
-            Donde el mar te da la bienvenida
+            Entre cascadas y lagunas turquesa
           </p>
 
           {/* Feature list */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', alignItems: 'flex-start', maxWidth: 260, margin: '0 auto' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', alignItems: 'flex-start', maxWidth: 270, margin: '0 auto' }}>
             {[
-              { icon: '🌊', text: 'Vistas al mar incomparables' },
-              { icon: '✨', text: 'Servicio de primera clase'   },
-              { icon: '🌿', text: 'Experiencias únicas e íntimas' },
+              { icon: '🏔️', text: 'Cascadas y lagunas turquesa' },
+              { icon: '✨', text: 'Servicio de primera clase'    },
+              { icon: '🌿', text: 'Naturaleza andina en estado puro' },
             ].map(({ icon, text }) => (
               <div key={text} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                <span style={{ fontSize: '1.3rem' }}>{icon}</span>
+                <span style={{ fontSize: '1.25rem' }}>{icon}</span>
                 <span style={{ color: 'rgba(255,255,255,0.82)', fontSize: '0.875rem' }}>{text}</span>
               </div>
             ))}
           </div>
         </div>
 
-        {/* Bottom decorative wave */}
+        {/* Decoración inferior – silueta de montañas */}
         <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0 }}>
-          <BottomWave/>
+          <svg viewBox="0 0 1440 90" preserveAspectRatio="none" style={{ height: 65, width: '100%', opacity: 0.18 }}>
+            <path d="M0,70 L160,30 L320,60 L480,10 L640,50 L800,20 L960,55 L1120,15 L1280,45 L1440,25 L1440,90 L0,90 Z" fill={BRAND.gold}/>
+          </svg>
         </div>
       </div>
 
       {/* ── Panel derecho – formulario ───────────── */}
       <div style={{
         flex: 1,
+        height: '100%',
+        overflowY: 'auto',
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
@@ -222,7 +210,6 @@ export default function Login() {
           )}
 
           <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-
             <div>
               <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: BRAND.wood, marginBottom: '0.5rem' }}>
                 Correo electrónico
@@ -231,7 +218,7 @@ export default function Login() {
                 type="email" name="email" value={form.email} onChange={handleChange}
                 required autoComplete="email"
                 placeholder="correo@ejemplo.com"
-                style={{ ...inputStyle, width: '100%', border: `1.5px solid ${BRAND.gold}`, borderRadius: 12, padding: '0.8rem 1rem', fontSize: '0.9rem', boxSizing: 'border-box' }}
+                style={{ width: '100%', boxSizing: 'border-box', border: `1.5px solid ${BRAND.gold}`, borderRadius: 12, padding: '0.8rem 1rem', fontSize: '0.9rem', background: 'white', color: BRAND.dark, outline: 'none' }}
                 onFocus={addFocus} onBlur={removeFocus}
               />
             </div>
@@ -244,7 +231,7 @@ export default function Login() {
                 type="password" name="password" value={form.password} onChange={handleChange}
                 required autoComplete="current-password"
                 placeholder="••••••••"
-                style={{ ...inputStyle, width: '100%', border: `1.5px solid ${BRAND.gold}`, borderRadius: 12, padding: '0.8rem 1rem', fontSize: '0.9rem', boxSizing: 'border-box' }}
+                style={{ width: '100%', boxSizing: 'border-box', border: `1.5px solid ${BRAND.gold}`, borderRadius: 12, padding: '0.8rem 1rem', fontSize: '0.9rem', background: 'white', color: BRAND.dark, outline: 'none' }}
                 onFocus={addFocus} onBlur={removeFocus}
               />
             </div>
