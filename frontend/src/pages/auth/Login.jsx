@@ -117,14 +117,16 @@ export default function Login() {
 
           {/* Logo emblem */}
           <div style={{
-            width: 96, height: 96, borderRadius: '50%',
+            width: 120, height: 120, borderRadius: '50%',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            border: `2px solid ${BRAND.gold}`,
+            border: `3px solid ${BRAND.gold}`,
             background: 'rgba(212,168,67,0.12)',
             backdropFilter: 'blur(6px)',
             margin: '0 auto 2rem',
+            overflow: 'hidden',
+            boxShadow: `0 0 32px rgba(212,168,67,0.35)`,
           }}>
-            <WaveLogo size={52}/>
+            <img src="/images/Logo-hotel.jpeg" alt="Brisas de Mayo" style={{ width: '100%', height: '100%', objectFit: 'cover' }}/>
           </div>
 
           <h1 style={{
@@ -182,12 +184,12 @@ export default function Login() {
         {/* Logo móvil */}
         <div className="lg:hidden" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: '2rem' }}>
           <div style={{
-            width: 60, height: 60, borderRadius: '50%',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            background: `linear-gradient(135deg, ${BRAND.brown}, ${BRAND.wood})`,
+            width: 72, height: 72, borderRadius: '50%', overflow: 'hidden',
+            border: `2px solid ${BRAND.gold}`,
             marginBottom: '0.5rem',
+            boxShadow: `0 0 16px rgba(212,168,67,0.3)`,
           }}>
-            <WaveLogo size={36}/>
+            <img src="/images/Logo-hotel.jpeg" alt="Brisas de Mayo" style={{ width: '100%', height: '100%', objectFit: 'cover' }}/>
           </div>
           <span style={{ fontSize: '1.15rem', fontWeight: 800, color: BRAND.brown, fontFamily: 'Georgia, serif' }}>
             Brisas de Mayo
