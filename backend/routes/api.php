@@ -7,10 +7,15 @@ use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\UsuarioController;
 use App\Http\Controllers\SedeController;
 use App\Http\Controllers\ReservaController;
+use App\Http\Controllers\PagoController;
 use Illuminate\Support\Facades\Route;
 
 // Health check público
 Route::get('/ping', fn () => response()->json(['status' => 'ok', 'app' => config('app.name')]));
+
+// Endpoints públicos para el landing
+Route::get('/habitaciones/disponibles', [HabitacionController::class, 'disponibles']);
+Route::get('/sedes/publicas',           [SedeController::class, 'publicas']);
 
 // Autenticación pública
 Route::prefix('auth')->group(function () {
@@ -41,6 +46,16 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::patch ('/reservas/{reserva}/checkin',      [ReservaController::class, 'checkin']);
     Route::patch ('/reservas/{reserva}/checkout',     [ReservaController::class, 'checkout']);
     Route::patch ('/reservas/{reserva}/cancelar',     [ReservaController::class, 'cancelar']);
+
+    // Pagos
+    Route::get   ('/reservas/{reserva}/pago',         [PagoController::class, 'show']);
+    Route::post  ('/reservas/{reserva}/pago',         [PagoController::class, 'store']);
+
+    // Gestión de pagos (staff)
+    Route::middleware('role:administrador,recepcionista')->group(function () {
+        Route::patch('/pagos/{pago}/verificar', [PagoController::class, 'verificar']);
+        Route::patch('/pagos/{pago}/rechazar',  [PagoController::class, 'rechazar']);
+    });
 
     // Habitaciones (escritura solo admin/recepcionista)
     Route::middleware('role:administrador,recepcionista')->group(function () {

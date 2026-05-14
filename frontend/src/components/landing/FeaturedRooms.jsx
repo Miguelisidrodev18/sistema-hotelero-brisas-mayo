@@ -1,47 +1,38 @@
-import { Link } from 'react-router-dom'
-import { Users, Eye, Star, BedDouble } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
+import { Users, Eye, BedDouble } from 'lucide-react'
 import RevealSection from '../ui/RevealSection'
+import { habitacionesApi } from '../../api/habitaciones'
+import { useAuth } from '../../context/AuthContext'
 
-const ROOMS = [
-  {
-    sede: 'Sede I — Laguna',
-    name: 'Matrimonial Queen',
-    tipo: 'Cama queen · Vista directa a la laguna',
-    precio: 150,
-    capacidad: 2,
-    vista: 'Laguna de Mayo',
-    rating: 4.9,
-    gradient: 'linear-gradient(135deg, #0f766e 0%, #134e4a 100%)',
-    badge: 'Vista a la laguna',
-    badgeBg: '#14b8a6',
-  },
-  {
-    sede: 'Sede II — Cascadas',
-    name: 'Matrimonial KIN',
-    tipo: 'Cama king · Vista a las cascadas',
-    precio: 300,
-    capacidad: 2,
-    vista: 'Cascadas Cabracancha',
-    rating: 5.0,
-    gradient: 'linear-gradient(135deg, #7B4019 0%, #3D1A06 100%)',
-    badge: 'Más popular',
-    badgeBg: '#F5922E',
-  },
-  {
-    sede: 'Sede II — Cascadas',
-    name: 'Matrimonial + Adicional',
-    tipo: 'Cama matrimonial + cama extra · Vista cascadas',
-    precio: 250,
-    capacidad: 3,
-    vista: 'Cascadas Cabracancha',
-    rating: 4.8,
-    gradient: 'linear-gradient(135deg, #b45309 0%, #78350f 100%)',
-    badge: 'Para familias',
-    badgeBg: '#f59e0b',
-  },
-]
+const TIPO_GRADIENTS = {
+  matrimonial:           'linear-gradient(135deg, #7B4019 0%, #3D1A06 100%)',
+  matrimonial_king:      'linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)',
+  matrimonial_queen:     'linear-gradient(135deg, #0f766e 0%, #134e4a 100%)',
+  matrimonial_adicional: 'linear-gradient(135deg, #b45309 0%, #78350f 100%)',
+  doble:                 'linear-gradient(135deg, #1e40af 0%, #1e3a8a 100%)',
+  triple:                'linear-gradient(135deg, #5b21b6 0%, #3b0764 100%)',
+}
 
 export default function FeaturedRooms() {
+  const { isAuthenticated } = useAuth()
+  const navigate = useNavigate()
+  const [rooms, setRooms] = useState([])
+
+  useEffect(() => {
+    habitacionesApi.getDisponibles()
+      .then(r => setRooms(r.data.slice(0, 3)))
+      .catch(() => {})
+  }, [])
+
+  function handleReservar(hab) {
+    if (isAuthenticated) {
+      navigate(`/reservas?hab=${hab.id}`)
+    } else {
+      navigate(`/login?next=/reservas?hab=${hab.id}`)
+    }
+  }
+
   return (
     <section id="habitaciones" style={{
       width: '100%',
@@ -84,138 +75,44 @@ export default function FeaturedRooms() {
           gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 300px), 1fr))',
           gap: 28,
         }}>
-          {ROOMS.map((room, i) => (
-            <RevealSection key={room.name} direction="scale"
-              style={{ transitionDelay: `${i * 0.12}s` }}
-            >
-              <article className="card-hover" style={{
-                borderRadius: 20,
-                overflow: 'hidden',
-                border: '1px solid rgba(0,0,0,0.05)',
-                boxShadow: '0 4px 24px rgba(61,26,6,0.06)',
-                background: 'white',
-              }}>
+          {rooms.map((hab, i) => (
+            <RevealSection key={hab.id} direction="scale" style={{ transitionDelay: `${i * 0.12}s` }}>
+              <article className="card-hover" style={{ borderRadius: 20, overflow: 'hidden', border: '1px solid rgba(0,0,0,0.05)', boxShadow: '0 4px 24px rgba(61,26,6,0.06)', background: 'white' }}>
 
-                {/* Image/gradient header */}
-                <div style={{
-                  position: 'relative',
-                  height: 210,
-                  background: room.gradient,
-                  overflow: 'hidden',
-                }}>
-                  {/* Decorative light */}
-                  <div style={{
-                    position: 'absolute', inset: 0, opacity: 0.2,
-                    background: 'radial-gradient(circle at 70% 30%, rgba(255,255,255,.5) 0%, transparent 60%)',
-                  }} />
-
-                  <span style={{
-                    position: 'absolute',
-                    top: 16, left: 16,
-                    background: room.badgeBg,
-                    color: 'white',
-                    fontSize: '0.65rem',
-                    fontWeight: 700,
-                    padding: '5px 14px',
-                    borderRadius: 9999,
-                    letterSpacing: '0.03em',
-                  }}>
-                    {room.badge}
+                <div style={{ position: 'relative', height: 210, background: hab.sede_imagen ? '#3D1A06' : (TIPO_GRADIENTS[hab.tipo] ?? TIPO_GRADIENTS.matrimonial), overflow: 'hidden' }}>
+                  {hab.sede_imagen && <img src={hab.sede_imagen} alt={hab.sede_nombre} style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={e => e.target.style.display = 'none'}/>}
+                  <div style={{ position: 'absolute', inset: 0, opacity: 0.2, background: 'radial-gradient(circle at 70% 30%, rgba(255,255,255,.5) 0%, transparent 60%)' }}/>
+                  <span style={{ position: 'absolute', top: 16, left: 16, background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)', color: 'white', fontSize: '0.65rem', fontWeight: 700, padding: '5px 14px', borderRadius: 9999 }}>
+                    {hab.tipo_label}
                   </span>
-
-                  <div style={{
-                    position: 'absolute',
-                    bottom: 16, left: 16, right: 16,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                  }}>
-                    <span style={{
-                      color: 'rgba(255,255,255,0.7)',
-                      fontSize: '0.7rem',
-                      background: 'rgba(0,0,0,0.2)',
-                      padding: '4px 10px',
-                      borderRadius: 9999,
-                      backdropFilter: 'blur(4px)',
-                    }}>{room.sede}</span>
-                    <span style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 4,
-                      color: 'white',
-                      fontSize: '0.85rem',
-                      fontWeight: 600,
-                    }}>
-                      <Star size={13} fill="#F5922E" style={{ color: '#F5922E' }} /> {room.rating}
-                    </span>
+                  <div style={{ position: 'absolute', bottom: 16, left: 16, color: 'rgba(255,255,255,0.8)', fontSize: '0.7rem', background: 'rgba(0,0,0,0.25)', padding: '4px 10px', borderRadius: 9999, backdropFilter: 'blur(4px)' }}>
+                    {hab.sede_nombre}
                   </div>
                 </div>
 
                 <div style={{ padding: 24 }}>
-                  <h3 style={{
-                    fontWeight: 700,
-                    color: '#3D1A06',
-                    fontSize: '1.1rem',
-                    marginBottom: 4,
-                  }}>{room.name}</h3>
-                  <p style={{
-                    color: '#9ca3af',
-                    fontSize: '0.8rem',
-                    marginBottom: 16,
-                  }}>{room.tipo}</p>
+                  <h3 style={{ fontWeight: 700, color: '#3D1A06', fontSize: '1.1rem', marginBottom: 4 }}>
+                    Habitación N° {hab.numero}
+                  </h3>
+                  <p style={{ color: '#9ca3af', fontSize: '0.8rem', marginBottom: 16 }}>
+                    {hab.sede_ciudad} · Piso {hab.piso}
+                  </p>
 
-                  <div style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 16,
-                    fontSize: '0.8rem',
-                    color: '#6b7280',
-                    marginBottom: 20,
-                    paddingBottom: 16,
-                    borderBottom: '1px solid rgba(0,0,0,0.05)',
-                  }}>
-                    <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <Users size={13} /> {room.capacidad} pers.
-                    </span>
-                    <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <Eye size={13} /> {room.vista}
-                    </span>
-                    <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <BedDouble size={13} />
-                    </span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 16, fontSize: '0.8rem', color: '#6b7280', marginBottom: 20, paddingBottom: 16, borderBottom: '1px solid rgba(0,0,0,0.05)' }}>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}><Users size={13}/> {hab.capacidad} pers.</span>
+                    {hab.tiene_vista && <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}><Eye size={13}/> Vista</span>}
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}><BedDouble size={13}/></span>
                   </div>
 
-                  <div style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                  }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                     <div>
-                      <span style={{
-                        fontSize: '1.5rem',
-                        fontWeight: 800,
-                        color: '#3D1A06',
-                      }}>S/ {room.precio}</span>
-                      <span style={{
-                        color: '#9ca3af',
-                        fontSize: '0.7rem',
-                        marginLeft: 4,
-                      }}>/ noche</span>
+                      <span style={{ fontSize: '1.5rem', fontWeight: 800, color: '#3D1A06' }}>S/ {hab.precio}</span>
+                      <span style={{ color: '#9ca3af', fontSize: '0.7rem', marginLeft: 4 }}>/noche</span>
                     </div>
-                    <Link to="/register"
-                      className="btn-glow"
-                      style={{
-                        background: 'linear-gradient(135deg, #F5922E, #E07820)',
-                        color: 'white',
-                        fontSize: '0.8rem',
-                        fontWeight: 700,
-                        padding: '10px 20px',
-                        borderRadius: 14,
-                        textDecoration: 'none',
-                      }}
-                    >
+                    <button onClick={() => handleReservar(hab)} className="btn-glow"
+                      style={{ background: 'linear-gradient(135deg, #F5922E, #E07820)', color: 'white', fontSize: '0.8rem', fontWeight: 700, padding: '10px 20px', borderRadius: 14, border: 'none', cursor: 'pointer' }}>
                       Reservar
-                    </Link>
+                    </button>
                   </div>
                 </div>
               </article>
@@ -224,7 +121,7 @@ export default function FeaturedRooms() {
         </div>
 
         <RevealSection style={{ textAlign: 'center', marginTop: 48 }}>
-          <Link to="/register"
+          <Link to="/habitaciones"
             style={{
               display: 'inline-flex',
               alignItems: 'center',
@@ -251,7 +148,7 @@ export default function FeaturedRooms() {
               e.currentTarget.style.boxShadow = 'none'
             }}
           >
-            Ver todas las habitaciones →
+            Ver todas las habitaciones disponibles →
           </Link>
         </RevealSection>
       </div>

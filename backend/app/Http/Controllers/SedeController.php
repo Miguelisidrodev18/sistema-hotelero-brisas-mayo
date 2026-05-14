@@ -72,6 +72,17 @@ class SedeController extends Controller
         return response()->json(['message' => 'Sede eliminada.']);
     }
 
+    // Endpoint público para el landing — sin auth
+    public function publicas()
+    {
+        return response()->json(
+            Sede::where('activo', true)
+                ->withCount(['habitaciones as habitaciones_disponibles' => fn($q) => $q->where('estado', 'disponible')])
+                ->orderBy('nombre')
+                ->get()
+        );
+    }
+
     private function uniqueSlug(string $base, ?int $ignoreId = null): string
     {
         $slug = $base;

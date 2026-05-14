@@ -4,7 +4,8 @@ import PrivateRoute from './PrivateRoute'
 import AppLayout    from '../components/layouts/AppLayout'
 
 // Public pages
-import Landing  from '../pages/public/Landing'
+import Landing              from '../pages/public/Landing'
+import HabitacionesPublicas from '../pages/public/HabitacionesPublicas'
 import Login    from '../pages/auth/Login'
 import Register from '../pages/auth/Register'
 
@@ -19,7 +20,9 @@ import Sedes          from '../pages/admin/Sedes'
 import ReservasRecepcion from '../pages/recepcion/Reservas'
 
 // Cliente pages
-import MisReservas from '../pages/cliente/MisReservas'
+import MisReservas         from '../pages/cliente/MisReservas'
+import ReservarHabitacion  from '../pages/cliente/ReservarHabitacion'
+import PagoReserva         from '../pages/cliente/PagoReserva'
 
 // Placeholder for unbuilt pages
 function Placeholder({ title }) {
@@ -63,9 +66,10 @@ export default function AppRouter() {
         <Routes>
 
           {/* ── Public ── */}
-          <Route path="/"         element={<Landing />} />
-          <Route path="/login"    element={<GuestRoute><Login /></GuestRoute>} />
-          <Route path="/register" element={<GuestRoute><Register /></GuestRoute>} />
+          <Route path="/"              element={<Landing />} />
+          <Route path="/habitaciones"  element={<HabitacionesPublicas />} />
+          <Route path="/login"         element={<GuestRoute><Login /></GuestRoute>} />
+          <Route path="/register"      element={<GuestRoute><Register /></GuestRoute>} />
 
           {/* ── Administrador ── */}
           <Route path="/admin" element={
@@ -100,8 +104,10 @@ export default function AppRouter() {
               <AppLayout />
             </PrivateRoute>
           }>
-            <Route index           element={<MisReservas />} />
-            <Route path="perfil"   element={<Configuracion />} />
+            <Route index              element={<MisReservas />} />
+            <Route path="nueva"       element={<ReservarHabitacion />} />
+            <Route path="pago/:reservaId" element={<PagoReserva />} />
+            <Route path="perfil"      element={<Configuracion />} />
           </Route>
 
           {/* ── Gerente / Contador ── */}

@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
+import { useSearchParams, useNavigate } from 'react-router-dom'
 import { reservasApi } from '../../api/reservas'
 import { habitacionesApi } from '../../api/habitaciones'
 import { sedesApi } from '../../api/sedes'
@@ -32,7 +33,7 @@ function Modal({ title, onClose, children }) {
   )
 }
 
-function NuevaReservaForm({ onSave, onCancel, saving }) {
+function NuevaReservaForm({ onSave, onCancel, saving, preHabId }) {
   const [sedes, setSedes]           = useState([])
   const [habitaciones, setHabitaciones] = useState([])
   const [form, setForm]             = useState({ sede_id: '', habitacion_id: '', fecha_entrada: '', fecha_salida: '', num_huespedes: 1, notas: '' })
@@ -40,6 +41,17 @@ function NuevaReservaForm({ onSave, onCancel, saving }) {
   const [precio, setPrecio]         = useState(null)
 
   useEffect(() => { sedesApi.getAll().then(r => setSedes(r.data.filter(s => s.activo))) }, [])
+
+  // Si viene con habitación precargada, carga sus datos
+  useEffect(() => {
+    if (!preHabId) return
+    habitacionesApi.getDisponibles().then(r => {
+      const hab = r.data.find(h => h.id === preHabId)
+      if (hab) {
+        setForm(f => ({ ...f, sede_id: String(hab.sede_id), habitacion_id: String(hab.id) }))
+      }
+    })
+  }, [preHabId])
 
   useEffect(() => {
     if (!form.sede_id) { setHabitaciones([]); return }
@@ -221,14 +233,26 @@ function Row({ label, value, bold }) {
 }
 
 export default function MisReservas() {
+  const [searchParams, setSearchParams] = useSearchParams()
+  const navigate = useNavigate()
   const [reservas, setReservas] = useState([])
   const [meta, setMeta]         = useState(null)
   const [loading, setLoading]   = useState(true)
   const [saving, setSaving]     = useState(false)
   const [modal, setModal]       = useState(false)
+  const [modalHabId, setModalHabId] = useState(null)
   const [qrReserva, setQrReserva] = useState(null)
   const [filtroEstado, setFiltroEstado] = useState('')
   const [page, setPage]         = useState(1)
+  const [nuevoCodigo, setNuevoCodigo] = useState(searchParams.get('nueva') ?? '')
+
+  // Si viene de landing con ?hab=ID, redirige a la nueva página de reserva
+  useEffect(() => {
+    const habId = searchParams.get('hab')
+    if (habId) navigate(`/reservas/nueva?hab=${habId}`, { replace: true })
+    const nueva = searchParams.get('nueva')
+    if (nueva) setSearchParams({}, { replace: true })
+  }, [])
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -263,7 +287,7 @@ export default function MisReservas() {
           <h1 style={{ fontSize: '1.4rem', fontWeight: 800, color: '#111', marginBottom: '0.15rem' }}>Mis Reservas</h1>
           <p style={{ fontSize: '0.85rem', color: '#6B7280' }}>Historial y estado de tus reservaciones</p>
         </div>
-        <button onClick={() => setModal(true)}
+        <button onClick={() => navigate('/reservas/nueva')}
           style={{ padding: '0.6rem 1.25rem', background: '#F5922E', color: 'white', border: 'none', borderRadius: 10, fontWeight: 600, fontSize: '0.875rem', cursor: 'pointer' }}>
           + Nueva reserva
         </button>
@@ -353,8 +377,13 @@ export default function MisReservas() {
       )}
 
       {modal && (
-        <Modal title="Nueva reserva" onClose={() => setModal(false)}>
-          <NuevaReservaForm onSave={handleSave} onCancel={() => setModal(false)} saving={saving}/>
+        <Modal title="Nueva reserva" onClose={() => { setModal(false); setModalHabId(null) }}>
+          <NuevaReservaForm
+            onSave={handleSave}
+            onCancel={() => { setModal(false); setModalHabId(null) }}
+            saving={saving}
+            preHabId={modalHabId}
+          />
         </Modal>
       )}
 

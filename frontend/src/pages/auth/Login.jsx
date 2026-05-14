@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 
 const ROLE_HOME = {
@@ -37,6 +37,9 @@ function Divider() {
 export default function Login() {
   const { login }   = useAuth()
   const navigate    = useNavigate()
+  const [searchParams] = useSearchParams()
+  const next = searchParams.get('next')
+
   const [form, setForm]       = useState({ email: '', password: '' })
   const [error, setError]     = useState('')
   const [loading, setLoading] = useState(false)
@@ -51,7 +54,12 @@ export default function Login() {
     setLoading(true)
     try {
       const user = await login(form.email, form.password)
-      navigate(ROLE_HOME[user.role] ?? '/reservas', { replace: true })
+      // Si viene de una habitación pública, redirige ahí (solo clientes)
+      if (next && user.role === 'cliente') {
+        navigate(next, { replace: true })
+      } else {
+        navigate(ROLE_HOME[user.role] ?? '/reservas', { replace: true })
+      }
     } catch (err) {
       setError(err.response?.data?.message ?? 'Credenciales incorrectas. Intenta de nuevo.')
     } finally {

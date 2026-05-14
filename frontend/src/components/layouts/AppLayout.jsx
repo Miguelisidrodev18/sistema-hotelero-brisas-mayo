@@ -17,6 +17,7 @@ const PAGE_TITLES = {
   '/recepcion/checkin':       'Check-in',
   '/recepcion/checkout':      'Check-out',
   '/reservas':                'Mis Reservas',
+  '/reservas/nueva':          'Nueva Reserva',
   '/reservas/perfil':         'Mi Perfil',
   '/dashboard':               'Dashboard',
   '/dashboard/reportes':      'Reportes',
@@ -40,9 +41,15 @@ export default function AppLayout() {
     return () => window.removeEventListener('resize', fn)
   }, [])
 
-  const sidebarW     = collapsed ? 68 : 260
-  const contentML    = isDesktop ? sidebarW : 0
-  const pageTitle    = PAGE_TITLES[location.pathname] ?? 'Panel'
+  const sidebarW  = collapsed ? 68 : 260
+  const contentML = isDesktop ? sidebarW : 0
+
+  function getTitle(pathname) {
+    if (PAGE_TITLES[pathname]) return PAGE_TITLES[pathname]
+    if (pathname.startsWith('/reservas/pago/')) return 'Confirmar Pago'
+    return 'Panel'
+  }
+  const pageTitle = getTitle(location.pathname)
 
   return (
     <div style={{ display: 'flex', height: '100vh', overflow: 'hidden', backgroundColor: '#F9FAFB' }}>

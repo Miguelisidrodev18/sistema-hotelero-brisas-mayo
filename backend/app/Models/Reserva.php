@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Reserva extends Model
 {
@@ -40,6 +41,11 @@ class Reserva extends Model
     public function creadoPor(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');
+    }
+
+    public function pagos(): HasMany
+    {
+        return $this->hasMany(Pago::class);
     }
 
     public function getNochesAttribute(): int
