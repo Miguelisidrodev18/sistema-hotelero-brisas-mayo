@@ -110,14 +110,10 @@ export default function Register() {
 
         <div style={{ position: 'relative', zIndex: 10, textAlign: 'center', padding: '0 2.5rem', maxWidth: 360 }}>
 
-          {/* Logo circular */}
-          <div style={{
-            width: 100, height: 100, borderRadius: '50%', overflow: 'hidden',
-            border: `3px solid ${BRAND.gold}`,
-            margin: '0 auto 1.5rem',
-            boxShadow: `0 0 28px rgba(212,168,67,0.35)`,
-          }}>
-            <img src="/images/Logo-hotel.jpeg" alt="Brisas de Mayo" style={{ width: '100%', height: '100%', objectFit: 'cover' }}/>
+          {/* Logo */}
+          <div style={{ margin: '0 auto 1.5rem', textAlign: 'center' }}>
+            <img src="/images/Logo-vacio.png" alt="Brisas de Mayo"
+              style={{ height: 95, width: 'auto', objectFit: 'contain', filter: 'drop-shadow(0 4px 16px rgba(0,0,0,0.4))' }}/>
           </div>
 
           <h1 style={{
@@ -195,13 +191,8 @@ export default function Register() {
 
         {/* Logo móvil */}
         <div className="lg:hidden" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: '1.25rem' }}>
-          <div style={{
-            width: 64, height: 64, borderRadius: '50%', overflow: 'hidden',
-            border: `2px solid ${BRAND.gold}`, marginBottom: '0.4rem',
-            boxShadow: `0 0 14px rgba(212,168,67,0.3)`,
-          }}>
-            <img src="/images/Logo-hotel.jpeg" alt="Brisas de Mayo" style={{ width: '100%', height: '100%', objectFit: 'cover' }}/>
-          </div>
+          <img src="/images/Logo-vacio.png" alt="Brisas de Mayo"
+            style={{ height: 64, width: 'auto', objectFit: 'contain', marginBottom: '0.4rem' }}/>
           <span style={{ fontSize: '1.05rem', fontWeight: 800, color: BRAND.brown, fontFamily: 'Georgia, serif' }}>
             Brisas de Mayo
           </span>

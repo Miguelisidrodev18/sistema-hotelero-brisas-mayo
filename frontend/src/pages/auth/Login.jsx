@@ -95,18 +95,13 @@ export default function Login() {
         {/* Content */}
         <div style={{ position: 'relative', zIndex: 10, textAlign: 'center', padding: '0 3.5rem', maxWidth: 480 }}>
 
-          {/* Logo circular */}
-          <div style={{
-            width: 120, height: 120, borderRadius: '50%',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            border: `3px solid ${BRAND.gold}`,
-            background: 'rgba(212,168,67,0.12)',
-            backdropFilter: 'blur(6px)',
-            margin: '0 auto 2rem',
-            overflow: 'hidden',
-            boxShadow: `0 0 32px rgba(212,168,67,0.35)`,
-          }}>
-            <img src="/images/Logo-hotel.jpeg" alt="Brisas de Mayo" style={{ width: '100%', height: '100%', objectFit: 'cover' }}/>
+          {/* Logo */}
+          <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '2rem' }}>
+            <img
+              src="/images/Logo-vacio.png"
+              alt="Brisas de Mayo"
+              style={{ height: 120, width: 'auto', objectFit: 'contain', filter: 'drop-shadow(0 4px 20px rgba(0,0,0,0.5))' }}
+            />
           </div>
 
           <h1 style={{
@@ -171,14 +166,8 @@ export default function Login() {
 
         {/* Logo móvil */}
         <div className="lg:hidden" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: '2rem' }}>
-          <div style={{
-            width: 72, height: 72, borderRadius: '50%', overflow: 'hidden',
-            border: `2px solid ${BRAND.gold}`,
-            marginBottom: '0.5rem',
-            boxShadow: `0 0 16px rgba(212,168,67,0.3)`,
-          }}>
-            <img src="/images/Logo-hotel.jpeg" alt="Brisas de Mayo" style={{ width: '100%', height: '100%', objectFit: 'cover' }}/>
-          </div>
+          <img src="/images/Logo-vacio.png" alt="Brisas de Mayo"
+            style={{ height: 72, width: 'auto', objectFit: 'contain', marginBottom: '0.5rem' }}/>
           <span style={{ fontSize: '1.15rem', fontWeight: 800, color: BRAND.brown, fontFamily: 'Georgia, serif' }}>
             Brisas de Mayo
           </span>

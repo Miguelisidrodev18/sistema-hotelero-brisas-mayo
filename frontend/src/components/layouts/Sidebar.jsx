@@ -5,12 +5,13 @@ import {
   LayoutDashboard, BedDouble, Building2, Users, Settings,
   CalendarDays, ArrowRightToLine, ArrowLeftFromLine,
   BarChart3, DollarSign, UserCircle, ChevronLeft, ChevronRight,
-  Hotel, X, LogOut, Menu,
+  X, LogOut, Menu,
 } from 'lucide-react'
 
 const NAV = {
   administrador: [
     { icon: LayoutDashboard, label: 'Dashboard',     to: '/admin',                end: true },
+    { icon: CalendarDays,    label: 'Reservas',      to: '/admin/reservas' },
     { icon: BedDouble,       label: 'Habitaciones',  to: '/admin/habitaciones' },
     { icon: Building2,       label: 'Sedes',         to: '/admin/sedes' },
     { icon: Users,           label: 'Usuarios',      to: '/admin/usuarios' },
@@ -86,18 +87,16 @@ export default function Sidebar({ collapsed, setCollapsed, mobileOpen, setMobile
         borderBottom: '1px solid rgba(255,255,255,0.07)',
         gap: 8,
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, overflow: 'hidden', flex: 1 }}>
-          <div style={{
-            width: 34, height: 34, borderRadius: 8, flexShrink: 0,
-            background: 'linear-gradient(135deg,#F5922E,#D4A843)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-          }}>
-            <Hotel size={18} color="white" />
-          </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, overflow: 'hidden', flex: 1, minWidth: 0 }}>
+          <img
+            src="/images/Logo-hotel.jpeg"
+            alt="Brisas de Mayo"
+            style={{ width: 38, height: 38, objectFit: 'contain', flexShrink: 0 }}
+          />
           {!collapsed && (
-            <div style={{ overflow: 'hidden' }}>
-              <p style={{ color: 'white', fontSize: 13, fontWeight: 700, lineHeight: 1.2, whiteSpace: 'nowrap' }}>Brisas</p>
-              <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 10, whiteSpace: 'nowrap' }}>de Mayo</p>
+            <div style={{ minWidth: 0 }}>
+              <p style={{ color: 'white', fontSize: 13, fontWeight: 700, lineHeight: 1.3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Brisas de Mayo</p>
+              <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 10, whiteSpace: 'nowrap' }}>Huancaya, Yauyos</p>
             </div>
           )}
         </div>

@@ -12,6 +12,14 @@ import Register from '../pages/auth/Register'
 import AdminDashboard from '../pages/admin/Dashboard'
 import Habitaciones   from '../pages/admin/Habitaciones'
 import Configuracion  from '../pages/admin/Configuracion'
+import Usuarios       from '../pages/admin/Usuarios'
+import Sedes          from '../pages/admin/Sedes'
+
+// Recepcion / shared pages
+import ReservasRecepcion from '../pages/recepcion/Reservas'
+
+// Cliente pages
+import MisReservas from '../pages/cliente/MisReservas'
 
 // Placeholder for unbuilt pages
 function Placeholder({ title }) {
@@ -68,8 +76,9 @@ export default function AppRouter() {
             <Route index                  element={<AdminDashboard />} />
             <Route path="habitaciones"    element={<Habitaciones />} />
             <Route path="configuracion"   element={<Configuracion />} />
-            <Route path="sedes"           element={<Placeholder title="Gestión de Sedes" />} />
-            <Route path="usuarios"        element={<Placeholder title="Gestión de Usuarios" />} />
+            <Route path="reservas"        element={<ReservasRecepcion />} />
+            <Route path="sedes"           element={<Sedes />} />
+            <Route path="usuarios"        element={<Usuarios />} />
           </Route>
 
           {/* ── Recepcionista ── */}
@@ -80,7 +89,7 @@ export default function AppRouter() {
           }>
             <Route index                  element={<Placeholder title="Dashboard Recepción" />} />
             <Route path="habitaciones"    element={<Habitaciones />} />
-            <Route path="reservas"        element={<Placeholder title="Reservas" />} />
+            <Route path="reservas"        element={<ReservasRecepcion />} />
             <Route path="checkin"         element={<Placeholder title="Check-in" />} />
             <Route path="checkout"        element={<Placeholder title="Check-out" />} />
           </Route>
@@ -91,7 +100,7 @@ export default function AppRouter() {
               <AppLayout />
             </PrivateRoute>
           }>
-            <Route index           element={<Placeholder title="Mis Reservas" />} />
+            <Route index           element={<MisReservas />} />
             <Route path="perfil"   element={<Configuracion />} />
           </Route>
 
