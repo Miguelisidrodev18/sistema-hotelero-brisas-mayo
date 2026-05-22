@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+// ReservaServicio resolved at runtime — avoid circular import at model level
 
 class Reserva extends Model
 {
@@ -46,6 +47,11 @@ class Reserva extends Model
     public function pagos(): HasMany
     {
         return $this->hasMany(Pago::class);
+    }
+
+    public function servicios(): HasMany
+    {
+        return $this->hasMany(ReservaServicio::class);
     }
 
     public function getNochesAttribute(): int

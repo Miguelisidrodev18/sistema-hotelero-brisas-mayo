@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import { Menu, X, Phone } from 'lucide-react'
+import { Menu, X, Phone, UtensilsCrossed } from 'lucide-react'
 
 const NAV_LINKS = [
   { label: 'Inicio',       href: '#inicio' },
@@ -117,6 +117,20 @@ export default function Navbar() {
               <Phone size={13} />
               +51 999 123 456
             </a>
+            <Link to="/restaurant"
+              style={{
+                display: 'flex', alignItems: 'center', gap: 6,
+                color: 'rgba(255,255,255,0.85)',
+                fontWeight: 500,
+                fontSize: '0.8rem',
+                textDecoration: 'none',
+                transition: 'color 0.2s',
+              }}
+              onMouseEnter={e => e.currentTarget.style.color = '#F5922E'}
+              onMouseLeave={e => e.currentTarget.style.color = 'rgba(255,255,255,0.85)'}
+            >
+              <UtensilsCrossed size={14}/> Restaurante
+            </Link>
             <Link to="/login"
               className="btn-glow"
               style={{
@@ -186,6 +200,20 @@ export default function Navbar() {
               {l.label}
             </a>
           ))}
+
+          {/* Restaurante */}
+          <Link to="/restaurant" onClick={() => setOpen(false)}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 8,
+              color: '#F5922E',
+              fontSize: '0.9rem',
+              fontWeight: 600,
+              textDecoration: 'none',
+              padding: '10px 12px',
+              borderRadius: 10,
+            }}>
+            <UtensilsCrossed size={16}/> Restaurante
+          </Link>
 
           {/* Phone */}
           <a href="tel:+51999123456"

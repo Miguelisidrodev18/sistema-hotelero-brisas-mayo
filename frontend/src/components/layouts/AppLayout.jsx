@@ -7,6 +7,10 @@ import { useAuth } from '../../context/AuthContext'
 const PAGE_TITLES = {
   '/admin':                   'Dashboard',
   '/admin/reservas':          'Reservas',
+  '/admin/pagos':             'Pagos',
+  '/admin/cocheras':          'Cocheras',
+  '/recepcion/pagos':         'Pagos',
+  '/reservas/cochera':        'Mi Cochera',
   '/admin/habitaciones':      'Habitaciones',
   '/admin/sedes':             'Sedes',
   '/admin/usuarios':          'Usuarios',
@@ -19,7 +23,7 @@ const PAGE_TITLES = {
   '/reservas':                'Mis Reservas',
   '/reservas/nueva':          'Nueva Reserva',
   '/reservas/perfil':         'Mi Perfil',
-  '/dashboard':               'Dashboard',
+  '/dashboard':               'Dashboard Gerencial',
   '/dashboard/reportes':      'Reportes',
   '/dashboard/finanzas':      'Finanzas',
 }

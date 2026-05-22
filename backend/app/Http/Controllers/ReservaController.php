@@ -2,9 +2,13 @@
 
 namespace App\Http\Controllers;
 
+use App\Mail\ReservaConfirmadaMail;
+use App\Mail\ReservaCanceladaMail;
 use App\Models\Habitacion;
 use App\Models\Reserva;
+use App\Models\TarifaTemporada;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
 
 class ReservaController extends Controller
@@ -65,8 +69,16 @@ class ReservaController extends Controller
             return response()->json(['message' => 'La habitación no está disponible en esas fechas.'], 422);
         }
 
-        $noches      = now()->parse($data['fecha_entrada'])->diffInDays($data['fecha_salida']);
-        $precioNoche = $habitacion->precio;
+        $noches = now()->parse($data['fecha_entrada'])->diffInDays($data['fecha_salida']);
+
+        // Tarifa por temporada: busca el factor más alto que aplique a estas fechas y sede
+        $factor = TarifaTemporada::where('activo', true)
+            ->where(fn ($q) => $q->whereNull('sede_id')->orWhere('sede_id', $habitacion->sede_id))
+            ->where('fecha_inicio', '<=', $data['fecha_salida'])
+            ->where('fecha_fin',    '>=', $data['fecha_entrada'])
+            ->max('factor') ?? 1.0;
+
+        $precioNoche = round($habitacion->precio * $factor, 2);
         $precioTotal = $precioNoche * $noches;
         $clienteId   = $data['user_id'] ?? auth()->id();
 
@@ -85,7 +97,13 @@ class ReservaController extends Controller
             'notas'         => $data['notas'] ?? null,
         ]);
 
-        return response()->json($reserva->load(['cliente:id,name,email', 'habitacion:id,numero,tipo', 'sede:id,nombre']), 201);
+        $reserva->load(['cliente:id,name,email', 'habitacion:id,numero,tipo', 'sede:id,nombre']);
+
+        try {
+            Mail::to($reserva->cliente->email)->send(new ReservaConfirmadaMail($reserva));
+        } catch (\Throwable) {}
+
+        return response()->json($reserva, 201);
     }
 
     public function show(Reserva $reserva)
@@ -143,6 +161,12 @@ class ReservaController extends Controller
         if (in_array($reserva->habitacion->estado, ['reservada', 'ocupada'])) {
             $reserva->habitacion->update(['estado' => 'disponible']);
         }
+
+        try {
+            $reserva->load(['cliente:id,name,email', 'habitacion:id,numero,tipo', 'sede:id,nombre']);
+            Mail::to($reserva->cliente->email)->send(new ReservaCanceladaMail($reserva));
+        } catch (\Throwable) {}
+
         return response()->json($reserva->fresh());
     }
 

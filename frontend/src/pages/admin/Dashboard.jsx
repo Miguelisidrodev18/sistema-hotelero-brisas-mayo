@@ -3,7 +3,9 @@ import { Link } from 'react-router-dom'
 import { habitacionesApi } from '../../api/habitaciones'
 import { sedesApi } from '../../api/sedes'
 import { useAuth } from '../../context/AuthContext'
-import { BedDouble, CheckCircle2, Users, Wrench, Sparkles, ArrowRight, Building2 } from 'lucide-react'
+import { useToast } from '../../context/ToastContext'
+import { BedDouble, CheckCircle2, Users, Wrench, Sparkles, ArrowRight, Building2, Clock } from 'lucide-react'
+import axiosClient from '../../api/axiosClient'
 
 const STATUS_META = {
   disponible:   { label: 'Disponibles',   color: '#16A34A', bg: '#DCFCE7', icon: CheckCircle2 },
@@ -42,9 +44,21 @@ function StatCard({ label, value, color, bg, Icon, loading }) {
 
 export default function AdminDashboard() {
   const { user } = useAuth()
+  const toast = useToast()
   const [habitaciones, setHabitaciones] = useState([])
   const [sedes,        setSedes]        = useState([])
   const [loading,      setLoading]      = useState(true)
+  const [expirando,    setExpirando]    = useState(false)
+
+  async function expirarReservas() {
+    setExpirando(true)
+    try {
+      const { data } = await axiosClient.post('/admin/expirar-reservas')
+      toast.success(data.message, { title: 'Mantenimiento' })
+    } catch {
+      toast.error('Error al ejecutar el proceso.')
+    } finally { setExpirando(false) }
+  }
 
   const today = new Date().toLocaleDateString('es-PE', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
 
@@ -214,6 +228,12 @@ export default function AdminDashboard() {
               {label} <ArrowRight size={14} />
             </Link>
           ))}
+          <button onClick={expirarReservas} disabled={expirando}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '10px 20px', borderRadius: 10, border: '1.5px solid #E5E7EB', backgroundColor: 'white', color: '#374151', fontSize: 14, fontWeight: 600, cursor: 'pointer', transition: 'all 0.15s' }}
+            onMouseEnter={e => { e.currentTarget.style.background = '#F9FAFB'; e.currentTarget.style.borderColor = '#D1D5DB' }}
+            onMouseLeave={e => { e.currentTarget.style.background = 'white'; e.currentTarget.style.borderColor = '#E5E7EB' }}>
+            <Clock size={14} style={{ color: '#9CA3AF' }}/> {expirando ? 'Procesando...' : 'Expirar reservas vencidas'}
+          </button>
         </div>
       </div>
     </div>

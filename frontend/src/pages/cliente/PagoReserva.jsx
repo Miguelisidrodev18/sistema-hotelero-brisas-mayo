@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, MapPin, BedDouble, Users, Calendar, CheckCircle, Smartphone, Banknote, CreditCard, Building2 } from 'lucide-react'
+import { ArrowLeft, BedDouble, Users, Calendar, CheckCircle, Smartphone, Banknote, CreditCard, Building2, Zap } from 'lucide-react'
 import { pagosApi } from '../../api/pagos'
+import { useBreakpoint } from '../../hooks/useBreakpoint'
 
 const METODOS = [
   {
@@ -94,20 +95,23 @@ function InfoRow({ label, value, highlight }) {
 export default function PagoReserva() {
   const { reservaId } = useParams()
   const navigate      = useNavigate()
+  const { isMobile }  = useBreakpoint()
 
-  const [data, setData]         = useState(null)
-  const [loading, setLoading]   = useState(true)
-  const [metodo, setMetodo]     = useState('')
-  const [referencia, setRef]    = useState('')
-  const [paying, setPaying]     = useState(false)
-  const [error, setError]       = useState('')
-  const [success, setSuccess]   = useState(false)
+  const [data, setData]           = useState(null)
+  const [loading, setLoading]     = useState(true)
+  const [metodo, setMetodo]       = useState('')
+  const [referencia, setRef]      = useState('')
+  const [paying, setPaying]       = useState(false)
+  const [culqiPaying, setCulqiPaying] = useState(false)
+  const [culqiReady, setCulqiReady]   = useState(false)
+  const [error, setError]         = useState('')
+  const [success, setSuccess]     = useState(false)
 
+  // Cargar datos de la reserva
   useEffect(() => {
     pagosApi.getByReserva(reservaId)
       .then(r => {
         setData(r.data)
-        // Si ya existe pago previo redirigir a mis reservas
         if (r.data.pago) {
           navigate(`/reservas?nueva=${r.data.reserva.codigo}`, { replace: true })
         }
@@ -115,6 +119,57 @@ export default function PagoReserva() {
       .catch(() => navigate('/reservas', { replace: true }))
       .finally(() => setLoading(false))
   }, [reservaId])
+
+  // Inyectar Culqi.js
+  useEffect(() => {
+    const script = document.createElement('script')
+    script.src = 'https://checkout.culqi.com/js/v4'
+    script.async = true
+    script.onload = () => setCulqiReady(true)
+    document.head.appendChild(script)
+    return () => {
+      try { document.head.removeChild(script) } catch {}
+    }
+  }, [])
+
+  // Callback global de Culqi
+  const handleCulqiToken = useCallback(async (token) => {
+    setCulqiPaying(true)
+    setError('')
+    try {
+      await pagosApi.culqiCharge({ token, reserva_id: parseInt(reservaId) })
+      setSuccess(true)
+      setTimeout(() => navigate(`/reservas?nueva=${data?.reserva?.codigo}`), 2500)
+    } catch (err) {
+      setError(err.response?.data?.message ?? 'El pago fue rechazado. Intenta con otra tarjeta.')
+    } finally {
+      setCulqiPaying(false)
+    }
+  }, [reservaId, data, navigate])
+
+  useEffect(() => {
+    window.culqi = () => {
+      if (window.Culqi?.token?.id) {
+        const tokenId = window.Culqi.token.id
+        window.Culqi.close()
+        handleCulqiToken(tokenId)
+      }
+    }
+    return () => { delete window.culqi }
+  }, [handleCulqiToken])
+
+  function openCulqi() {
+    if (!window.Culqi || !culqiReady) return
+    const reserva = data.reserva
+    window.Culqi.publicKey = import.meta.env.VITE_CULQI_PUBLIC_KEY ?? ''
+    window.Culqi.settings({
+      title: 'Hotel Brisas de Mayo',
+      currency: 'PEN',
+      description: `Reserva ${reserva.codigo}`,
+      amount: Math.round(parseFloat(reserva.precio_total) * 100),
+    })
+    window.Culqi.open()
+  }
 
   async function handlePagar() {
     if (!metodo) return
@@ -142,12 +197,15 @@ export default function PagoReserva() {
 
   if (success) {
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '60vh', gap: '1rem' }}>
-        <div style={{ width: 72, height: 72, borderRadius: '50%', background: '#F0FDF4', border: '3px solid #86EFAC', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <CheckCircle size={36} style={{ color: '#16A34A' }}/>
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '60vh', gap: '1rem', padding: '1rem' }}>
+        <div style={{ width: 80, height: 80, borderRadius: '50%', background: '#F0FDF4', border: '3px solid #86EFAC', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <CheckCircle size={40} style={{ color: '#16A34A' }}/>
         </div>
-        <h2 style={{ fontSize: '1.4rem', fontWeight: 800, color: '#111827' }}>¡Pago registrado!</h2>
-        <p style={{ color: '#6B7280', fontSize: '0.9rem' }}>Tu reserva ha sido confirmada. Redirigiendo...</p>
+        <h2 style={{ fontSize: '1.4rem', fontWeight: 800, color: '#111827', textAlign: 'center' }}>¡Pago confirmado!</h2>
+        <p style={{ color: '#6B7280', fontSize: '0.9rem', textAlign: 'center' }}>
+          Tu reserva está confirmada. Te enviamos un correo de confirmación.
+        </p>
+        <p style={{ color: '#9CA3AF', fontSize: '0.8rem' }}>Redirigiendo a tus reservas...</p>
       </div>
     )
   }
@@ -157,7 +215,7 @@ export default function PagoReserva() {
   const metodoInfo = METODOS.find(m => m.id === metodo)
 
   return (
-    <div style={{ padding: '1.5rem 2rem', maxWidth: 960, margin: '0 auto' }}>
+    <div className="page-pad" style={{ maxWidth: 960, margin: '0 auto' }}>
 
       {/* Header */}
       <button
@@ -184,7 +242,7 @@ export default function PagoReserva() {
       <h1 style={{ fontSize: '1.5rem', fontWeight: 800, color: '#111', marginBottom: '0.25rem' }}>Confirma tu pago</h1>
       <p style={{ fontSize: '0.85rem', color: '#6B7280', marginBottom: '1.75rem' }}>Reserva <b style={{ color: '#3D1A06' }}>{reserva.codigo}</b> · elige tu método de pago</p>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2rem' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: isMobile ? '1.25rem' : '2rem' }}>
 
         {/* ── Resumen de reserva ── */}
         <div>
@@ -229,10 +287,54 @@ export default function PagoReserva() {
 
         {/* ── Selección de método ── */}
         <div>
-          <p style={{ fontSize: '0.72rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#6B7280', marginBottom: '0.75rem' }}>Método de pago</p>
+
+          {/* Culqi — pago online con tarjeta */}
+          <div style={{ background: 'linear-gradient(135deg,#1a0050,#3b0764)', borderRadius: 16, padding: '1.25rem 1.5rem', marginBottom: '1.25rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.75rem' }}>
+              <div style={{ width: 36, height: 36, borderRadius: 10, background: 'rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Zap size={18} color="white"/>
+              </div>
+              <div>
+                <p style={{ color: 'white', fontWeight: 700, fontSize: '0.9rem', margin: 0 }}>Pago instantáneo con tarjeta</p>
+                <p style={{ color: 'rgba(255,255,255,0.55)', fontSize: '0.72rem', margin: 0 }}>Visa, Mastercard — procesado por Culqi</p>
+              </div>
+              <span style={{ marginLeft: 'auto', background: '#4ADE80', color: '#14532D', fontSize: '0.65rem', fontWeight: 800, padding: '3px 8px', borderRadius: 9999, whiteSpace: 'nowrap' }}>
+                CONFIRMACIÓN INMEDIATA
+              </span>
+            </div>
+
+            {error && metodo === '' && (
+              <div style={{ background: '#FEF2F2', border: '1px solid #FCA5A5', color: '#DC2626', borderRadius: 8, padding: '0.6rem 0.9rem', fontSize: '0.82rem', marginBottom: '0.75rem' }}>
+                {error}
+              </div>
+            )}
+
+            <button
+              onClick={openCulqi}
+              disabled={culqiPaying || !culqiReady}
+              style={{
+                width: '100%', padding: '0.85rem', borderRadius: 12, border: 'none',
+                background: culqiPaying ? '#6B7280' : 'white',
+                color: culqiPaying ? 'white' : '#3b0764',
+                fontWeight: 800, fontSize: '0.95rem', cursor: 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem',
+                transition: 'opacity 0.2s', opacity: culqiPaying ? 0.7 : 1,
+              }}>
+              <CreditCard size={18}/>
+              {culqiPaying ? 'Procesando pago...' : `Pagar S/ ${reserva.precio_total} con tarjeta`}
+            </button>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1rem' }}>
+            <div style={{ flex: 1, height: 1, background: '#E5E7EB' }}/>
+            <span style={{ fontSize: '0.75rem', color: '#9CA3AF', fontWeight: 600 }}>o paga manualmente</span>
+            <div style={{ flex: 1, height: 1, background: '#E5E7EB' }}/>
+          </div>
+
+          <p style={{ fontSize: '0.72rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#6B7280', marginBottom: '0.75rem' }}>Otros métodos de pago</p>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem', marginBottom: '1.25rem' }}>
-            {METODOS.map(m => (
+            {METODOS.filter(m => m.id !== 'tarjeta').map(m => (
               <MetodoPill key={m.id} metodo={m} selected={metodo} onSelect={setMetodo}/>
             ))}
           </div>
@@ -253,7 +355,7 @@ export default function PagoReserva() {
             </div>
           )}
 
-          {error && (
+          {error && metodo !== '' && (
             <div style={{ background: '#FEF2F2', border: '1px solid #FCA5A5', color: '#DC2626', borderRadius: 10, padding: '0.75rem 1rem', fontSize: '0.875rem', marginBottom: '1rem' }}>
               {error}
             </div>
@@ -268,11 +370,11 @@ export default function PagoReserva() {
               color: !metodo ? '#9CA3AF' : 'white', fontWeight: 700, fontSize: '1rem',
               transition: 'opacity 0.2s', opacity: paying ? 0.7 : 1,
             }}>
-            {paying ? 'Procesando...' : !metodo ? 'Selecciona un método' : `Confirmar pago — S/ ${reserva.precio_total}`}
+            {paying ? 'Procesando...' : !metodo ? 'Selecciona un método' : `Registrar pago — S/ ${reserva.precio_total}`}
           </button>
 
           <p style={{ fontSize: '0.75rem', color: '#9CA3AF', textAlign: 'center', marginTop: '0.75rem' }}>
-            Al confirmar, tu reserva quedará <b>Confirmada</b> y recibirás el QR de acceso.
+            Los métodos manuales quedan en estado <b>Pendiente</b> hasta que un recepcionista los verifique.
           </p>
         </div>
       </div>

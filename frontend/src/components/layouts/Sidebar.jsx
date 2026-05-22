@@ -3,30 +3,38 @@ import { useAuth } from '../../context/AuthContext'
 import { NavLink, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard, BedDouble, Building2, Users, Settings,
-  CalendarDays, ArrowRightToLine, ArrowLeftFromLine,
-  BarChart3, DollarSign, UserCircle, ChevronLeft, ChevronRight,
-  X, LogOut, Menu,
+  CalendarDays, BarChart3, DollarSign, UserCircle, ChevronLeft, ChevronRight,
+  X, LogOut, CreditCard, Car, Coffee, Tag, Wallet, ChefHat, UtensilsCrossed,
 } from 'lucide-react'
 
 const NAV = {
   administrador: [
-    { icon: LayoutDashboard, label: 'Dashboard',     to: '/admin',                end: true },
+    { icon: LayoutDashboard, label: 'Dashboard',     to: '/admin',                 end: true },
     { icon: CalendarDays,    label: 'Reservas',      to: '/admin/reservas' },
+    { icon: CreditCard,      label: 'Pagos',         to: '/admin/pagos' },
     { icon: BedDouble,       label: 'Habitaciones',  to: '/admin/habitaciones' },
     { icon: Building2,       label: 'Sedes',         to: '/admin/sedes' },
+    { icon: Car,             label: 'Cocheras',      to: '/admin/cocheras' },
+    { icon: Coffee,          label: 'Servicios',     to: '/admin/servicios' },
+    { icon: Tag,             label: 'Tarifas',       to: '/admin/tarifas' },
+    { icon: UtensilsCrossed, label: 'Platos',        to: '/admin/platos' },
+    { icon: ChefHat,         label: 'Cocina',        to: '/cocina' },
     { icon: Users,           label: 'Usuarios',      to: '/admin/usuarios' },
+    { icon: BarChart3,       label: 'Gerencial',     to: '/dashboard' },
     { icon: Settings,        label: 'Configuración', to: '/admin/configuracion' },
   ],
   recepcionista: [
-    { icon: LayoutDashboard,   label: 'Dashboard',    to: '/recepcion',               end: true },
-    { icon: BedDouble,         label: 'Habitaciones', to: '/recepcion/habitaciones' },
-    { icon: CalendarDays,      label: 'Reservas',     to: '/recepcion/reservas' },
-    { icon: ArrowRightToLine,  label: 'Check-in',     to: '/recepcion/checkin' },
-    { icon: ArrowLeftFromLine, label: 'Check-out',    to: '/recepcion/checkout' },
+    { icon: LayoutDashboard, label: 'Hoy',          to: '/recepcion',               end: true },
+    { icon: BedDouble,       label: 'Habitaciones', to: '/recepcion/habitaciones' },
+    { icon: CalendarDays,    label: 'Reservas',     to: '/recepcion/reservas' },
+    { icon: CreditCard,      label: 'Pagos',        to: '/recepcion/pagos' },
+    { icon: Wallet,          label: 'Caja diaria',  to: '/recepcion/caja' },
+    { icon: ChefHat,         label: 'Cocina',       to: '/cocina' },
   ],
   cliente: [
-    { icon: CalendarDays, label: 'Mis Reservas', to: '/reservas',       end: true },
-    { icon: UserCircle,   label: 'Mi Perfil',    to: '/reservas/perfil' },
+    { icon: CalendarDays, label: 'Mis Reservas', to: '/reservas',         end: true },
+    { icon: Car,          label: 'Cochera',       to: '/reservas/cochera' },
+    { icon: UserCircle,   label: 'Mi Perfil',     to: '/reservas/perfil' },
   ],
   gerente: [
     { icon: LayoutDashboard, label: 'Dashboard', to: '/dashboard', end: true },
@@ -38,12 +46,17 @@ const NAV = {
   ],
 }
 
+const NAV_COCINERO = [
+  { icon: ChefHat, label: 'Cocina', to: '/cocina', end: true },
+]
+
 const ROLE_LABEL = {
   administrador: 'Administrador',
   recepcionista: 'Recepcionista',
   cliente:       'Cliente',
   gerente:       'Gerente',
   contador:      'Contador',
+  cocinero:      'Cocinero',
 }
 
 export default function Sidebar({ collapsed, setCollapsed, mobileOpen, setMobileOpen }) {
@@ -57,7 +70,7 @@ export default function Sidebar({ collapsed, setCollapsed, mobileOpen, setMobile
     return () => window.removeEventListener('resize', fn)
   }, [])
 
-  const items   = NAV[user?.role] || []
+  const items   = user?.role === 'cocinero' ? NAV_COCINERO : (NAV[user?.role] || [])
   const initial = user?.name?.charAt(0)?.toUpperCase() || 'U'
   const sideW   = collapsed ? 68 : 260
   const translateX = (!isDesktop && !mobileOpen) ? '-100%' : '0'

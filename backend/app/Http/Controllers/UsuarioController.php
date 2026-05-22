@@ -40,7 +40,7 @@ class UsuarioController extends Controller
             'email'    => 'required|email|unique:users',
             'dni'      => 'nullable|string|max:20|unique:users',
             'telefono' => 'nullable|string|max:20',
-            'role'     => ['required', Rule::in(['cliente','recepcionista','administrador','contador','gerente'])],
+            'role'     => ['required', Rule::in(['cliente','recepcionista','administrador','contador','gerente','cocinero'])],
             'password' => 'required|string|min:8',
         ]);
 
@@ -62,7 +62,7 @@ class UsuarioController extends Controller
             'email'    => ['required','email', Rule::unique('users')->ignore($usuario->id)],
             'dni'      => ['nullable','string','max:20', Rule::unique('users')->ignore($usuario->id)],
             'telefono' => 'nullable|string|max:20',
-            'role'     => ['required', Rule::in(['cliente','recepcionista','administrador','contador','gerente'])],
+            'role'     => ['required', Rule::in(['cliente','recepcionista','administrador','contador','gerente','cocinero'])],
             'activo'   => 'boolean',
             'password' => 'nullable|string|min:8',
         ]);

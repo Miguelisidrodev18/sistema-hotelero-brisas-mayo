@@ -75,6 +75,10 @@ body {
   0%, 100% { box-shadow: 0 0 20px rgba(245,146,46,0.15); }
   50%      { box-shadow: 0 0 40px rgba(245,146,46,0.35); }
 }
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
 @keyframes spin-slow {
   from { transform: rotate(0deg); }
   to   { transform: rotate(360deg); }
@@ -249,4 +253,215 @@ body {
 /* ── Parallax-ready ────────────────────────── */
 .parallax-slow {
   will-change: transform;
+}
+
+/* ── Responsive utilities ───────────────────── */
+
+/* Grid que colapsa a 1 columna en móvil */
+.grid-responsive-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5rem;
+}
+@media (max-width: 639px) {
+  .grid-responsive-2 { grid-template-columns: 1fr; gap: 1rem; }
+}
+
+.grid-responsive-3 {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1rem;
+}
+@media (max-width: 767px) {
+  .grid-responsive-3 { grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 479px) {
+  .grid-responsive-3 { grid-template-columns: 1fr; }
+}
+
+/* Padding de página consistente */
+.page-pad {
+  padding: 1.5rem 2rem;
+}
+@media (max-width: 639px) {
+  .page-pad { padding: 1rem; }
+}
+
+/* Contenedor de tabla con scroll horizontal */
+.table-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  border-radius: 12px;
+}
+
+/* Esconder en móvil */
+.hide-mobile {
+  display: block;
+}
+@media (max-width: 639px) {
+  .hide-mobile { display: none !important; }
+}
+
+/* Mostrar solo en móvil */
+.show-mobile {
+  display: none;
+}
+@media (max-width: 639px) {
+  .show-mobile { display: block; }
+}
+
+/* Campos de formulario consistentes */
+.field-input {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1.5px solid #E5E7EB;
+  border-radius: 10px;
+  padding: 0.7rem 0.9rem;
+  font-size: 0.875rem;
+  outline: none;
+  background: white;
+  font-family: inherit;
+  transition: border-color 0.15s, box-shadow 0.15s;
+  color: #111827;
+}
+.field-input:focus {
+  border-color: #F5922E;
+  box-shadow: 0 0 0 3px rgba(245,146,46,0.15);
+}
+.field-input:disabled {
+  background: #F9FAFB;
+  color: #9CA3AF;
+  cursor: not-allowed;
+}
+
+.field-label {
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #374151;
+  margin-bottom: 0.35rem;
+}
+
+/* Botones primarios y secundarios */
+.btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  padding: 0.7rem 1.25rem;
+  border: none;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #F5922E, #E07820);
+  color: white;
+  font-weight: 700;
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: opacity 0.2s, box-shadow 0.2s;
+  font-family: inherit;
+}
+.btn-primary:hover:not(:disabled) {
+  opacity: 0.92;
+  box-shadow: 0 4px 16px rgba(245,146,46,0.35);
+}
+.btn-primary:disabled {
+  background: #E5E7EB;
+  color: #9CA3AF;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  padding: 0.7rem 1.25rem;
+  border: 1.5px solid #E5E7EB;
+  border-radius: 12px;
+  background: white;
+  color: #374151;
+  font-weight: 600;
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+  font-family: inherit;
+}
+.btn-secondary:hover:not(:disabled) {
+  background: #F9FAFB;
+  border-color: #D1D5DB;
+}
+
+.btn-danger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  padding: 0.5rem 1rem;
+  border: 1px solid #FEE2E2;
+  border-radius: 8px;
+  background: #FEF2F2;
+  color: #DC2626;
+  font-weight: 600;
+  font-size: 0.78rem;
+  cursor: pointer;
+  transition: background 0.15s;
+  font-family: inherit;
+}
+.btn-danger:hover {
+  background: #FEE2E2;
+}
+
+/* Card base */
+.card {
+  background: white;
+  border-radius: 16px;
+  border: 1px solid #E5E7EB;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+}
+
+/* Badge de estado */
+.status-badge {
+  display: inline-block;
+  padding: 3px 12px;
+  border-radius: 9999px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+/* Encabezado de sección en panel */
+.section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1.25rem;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+.section-title {
+  font-size: 1.35rem;
+  font-weight: 800;
+  color: #111827;
+  margin: 0;
+}
+.section-subtitle {
+  font-size: 0.82rem;
+  color: #9CA3AF;
+  margin: 0;
+}
+
+/* ── Ticket térmico (80mm) ────────────────── */
+#thermal-ticket {
+  display: none;
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 11px;
+  width: 72mm;
+  padding: 4mm;
+  white-space: pre;
+  line-height: 1.4;
+}
+
+@media print {
+  body > * { display: none !important; }
+  #thermal-ticket { display: block !important; }
 }

@@ -11,7 +11,7 @@ class Habitacion extends Model
 
     protected $fillable = [
         'sede_id', 'numero', 'tipo', 'capacidad', 'precio',
-        'piso', 'tiene_vista', 'estado', 'descripcion',
+        'piso', 'tiene_vista', 'estado', 'descripcion', 'imagen_url',
     ];
 
     protected function casts(): array

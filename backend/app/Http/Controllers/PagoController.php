@@ -2,12 +2,53 @@
 
 namespace App\Http\Controllers;
 
+use App\Mail\PagoConfirmadoMail;
 use App\Models\Pago;
 use App\Models\Reserva;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Mail;
 
 class PagoController extends Controller
 {
+    // GET /pagos — lista de pagos para staff
+    public function index(Request $request)
+    {
+        $q = Pago::with([
+            'reserva:id,codigo,fecha_entrada,fecha_salida,sede_id,habitacion_id',
+            'reserva.cliente:id,name,email',
+            'reserva.habitacion:id,numero,tipo',
+            'reserva.sede:id,nombre',
+            'registradoPor:id,name',
+        ])->latest();
+
+        if ($request->filled('estado')) {
+            $q->where('estado', $request->estado);
+        }
+        if ($request->filled('metodo_pago')) {
+            $q->where('metodo_pago', $request->metodo_pago);
+        }
+        if ($request->filled('search')) {
+            $search = $request->search;
+            $q->whereHas('reserva', fn ($r) =>
+                $r->where('codigo', 'like', "%{$search}%")
+                  ->orWhereHas('cliente', fn ($c) => $c->where('name', 'like', "%{$search}%"))
+            );
+        }
+
+        $pagos = $q->paginate(20);
+
+        // Resumen
+        $resumen = [
+            'total'      => Pago::count(),
+            'pendiente'  => Pago::where('estado', 'pendiente')->count(),
+            'verificado' => Pago::where('estado', 'verificado')->count(),
+            'rechazado'  => Pago::where('estado', 'rechazado')->count(),
+            'monto_total' => Pago::where('estado', 'verificado')->sum('monto'),
+        ];
+
+        return response()->json(['pagos' => $pagos, 'resumen' => $resumen]);
+    }
+
     // GET /reservas/{reserva}/pago — detalle de pago de una reserva
     public function show(Reserva $reserva)
     {
@@ -70,6 +111,12 @@ class PagoController extends Controller
     public function verificar(Pago $pago)
     {
         $pago->update(['estado' => 'verificado']);
+
+        try {
+            $reserva = $pago->reserva->load(['cliente:id,name,email', 'habitacion:id,numero,tipo', 'sede:id,nombre']);
+            Mail::to($reserva->cliente->email)->send(new PagoConfirmadoMail($reserva));
+        } catch (\Throwable) {}
+
         return response()->json($pago->fresh()->load('reserva'));
     }
 

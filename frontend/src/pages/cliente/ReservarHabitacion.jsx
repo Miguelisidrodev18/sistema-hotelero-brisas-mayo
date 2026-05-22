@@ -4,6 +4,7 @@ import { Users, BedDouble, MapPin, Eye, ArrowLeft, Calendar } from 'lucide-react
 import { habitacionesApi } from '../../api/habitaciones'
 import { sedesApi } from '../../api/sedes'
 import { reservasApi } from '../../api/reservas'
+import { useBreakpoint } from '../../hooks/useBreakpoint'
 
 const TIPO_GRADIENTS = {
   matrimonial:           'linear-gradient(135deg, #7B4019 0%, #3D1A06 100%)',
@@ -83,6 +84,7 @@ export default function ReservarHabitacion() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const preHabId = searchParams.get('hab') ? Number(searchParams.get('hab')) : null
+  const { isMobile } = useBreakpoint()
 
   const [step, setStep]               = useState(preHabId ? 2 : 1)
   const [habitaciones, setHabitaciones] = useState([])
@@ -138,7 +140,7 @@ export default function ReservarHabitacion() {
   }
 
   return (
-    <div style={{ padding: '1.5rem 2rem', maxWidth: 1100, margin: '0 auto' }}>
+    <div className="page-pad" style={{ maxWidth: 1100, margin: '0 auto' }}>
 
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1.75rem' }}>
@@ -186,7 +188,7 @@ export default function ReservarHabitacion() {
 
       {/* ── PASO 2: Fechas y confirmación ── */}
       {step === 2 && selected && (
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2rem' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: isMobile ? '1.25rem' : '2rem' }}>
 
           {/* Card habitación seleccionada */}
           <div>
@@ -221,7 +223,7 @@ export default function ReservarHabitacion() {
 
             <div style={{ background: 'white', borderRadius: 16, border: '1px solid #E5E7EB', padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '0.75rem' }}>
                 <div>
                   <label style={lbl}><Calendar size={13}/> Fecha de entrada *</label>
                   <input type="date" min={today} value={form.fecha_entrada}

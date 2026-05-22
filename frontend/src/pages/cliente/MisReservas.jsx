@@ -4,6 +4,9 @@ import { reservasApi } from '../../api/reservas'
 import { habitacionesApi } from '../../api/habitaciones'
 import { sedesApi } from '../../api/sedes'
 import QRCode from 'react-qr-code'
+import { useBreakpoint } from '../../hooks/useBreakpoint'
+import { useToast } from '../../context/ToastContext'
+import { useConfirm } from '../../hooks/useConfirm'
 
 const ESTADO_STYLE = {
   pendiente:  { bg: '#FEF3C7', color: '#92400E', label: 'Pendiente' },
@@ -235,6 +238,9 @@ function Row({ label, value, bold }) {
 export default function MisReservas() {
   const [searchParams, setSearchParams] = useSearchParams()
   const navigate = useNavigate()
+  const { isMobile } = useBreakpoint()
+  const toast = useToast()
+  const { confirm, dialog } = useConfirm()
   const [reservas, setReservas] = useState([])
   const [meta, setMeta]         = useState(null)
   const [loading, setLoading]   = useState(true)
@@ -272,31 +278,35 @@ export default function MisReservas() {
     finally { setSaving(false) }
   }
 
-  async function handleCancelar(id) {
-    if (!confirm('¿Cancelar esta reserva?')) return
-    await reservasApi.cancelar(id); load()
+  async function handleCancelar(id, codigo) {
+    const ok = await confirm({ title: 'Cancelar reserva', message: `¿Cancelar la reserva ${codigo}? Esta acción no se puede deshacer.`, confirmLabel: 'Sí, cancelar', danger: true })
+    if (!ok) return
+    try { await reservasApi.cancelar(id); toast.success('Reserva cancelada.'); load() }
+    catch (err) { toast.error(err.response?.data?.message ?? 'No se pudo cancelar.') }
   }
 
   const cell = { padding: '0.9rem 1rem', fontSize: '0.875rem', color: '#374151', borderBottom: '1px solid #F3F4F6' }
   const head = { padding: '0.75rem 1rem', fontSize: '0.72rem', fontWeight: 700, color: '#6B7280', textTransform: 'uppercase', letterSpacing: '0.06em', background: '#F9FAFB', borderBottom: '1px solid #E5E7EB' }
 
   return (
-    <div style={{ padding: '1.5rem 2rem' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+    <div className="page-pad">
+      {/* Header */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', gap: '0.75rem' }}>
         <div>
-          <h1 style={{ fontSize: '1.4rem', fontWeight: 800, color: '#111', marginBottom: '0.15rem' }}>Mis Reservas</h1>
+          <h1 style={{ fontSize: isMobile ? '1.2rem' : '1.4rem', fontWeight: 800, color: '#111', marginBottom: '0.15rem' }}>Mis Reservas</h1>
           <p style={{ fontSize: '0.85rem', color: '#6B7280' }}>Historial y estado de tus reservaciones</p>
         </div>
         <button onClick={() => navigate('/reservas/nueva')}
-          style={{ padding: '0.6rem 1.25rem', background: '#F5922E', color: 'white', border: 'none', borderRadius: 10, fontWeight: 600, fontSize: '0.875rem', cursor: 'pointer' }}>
-          + Nueva reserva
+          style={{ padding: '0.6rem 1.1rem', background: '#F5922E', color: 'white', border: 'none', borderRadius: 10, fontWeight: 600, fontSize: '0.875rem', cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0 }}>
+          + {isMobile ? 'Reservar' : 'Nueva reserva'}
         </button>
       </div>
 
+      {/* Filtros */}
       <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.25rem', flexWrap: 'wrap' }}>
         {['', 'pendiente', 'confirmada', 'checkin', 'finalizada', 'cancelada'].map(e => (
           <button key={e} onClick={() => { setFiltroEstado(e); setPage(1) }}
-            style={{ padding: '5px 14px', borderRadius: 20, border: '1.5px solid', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer',
+            style={{ padding: '5px 14px', borderRadius: 20, border: '1.5px solid', fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer',
               borderColor: filtroEstado === e ? '#F5922E' : '#E5E7EB',
               background:  filtroEstado === e ? '#FFF7ED' : 'white',
               color:       filtroEstado === e ? '#F5922E' : '#6B7280' }}>
@@ -305,66 +315,134 @@ export default function MisReservas() {
         ))}
       </div>
 
-      <div style={{ background: 'white', borderRadius: 12, border: '1px solid #E5E7EB', overflow: 'hidden' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-          <thead>
-            <tr>
-              <th style={head}>Código</th>
-              <th style={head}>Sede / Habitación</th>
-              <th style={head}>Fechas</th>
-              <th style={head}>Noches</th>
-              <th style={head}>Total</th>
-              <th style={head}>Estado</th>
-              <th style={{ ...head, textAlign: 'center' }}>Acción</th>
-            </tr>
-          </thead>
-          <tbody>
-            {loading ? (
-              <tr><td colSpan={7} style={{ ...cell, textAlign: 'center', color: '#9CA3AF' }}>Cargando...</td></tr>
-            ) : reservas.length === 0 ? (
-              <tr><td colSpan={7} style={{ ...cell, textAlign: 'center', color: '#9CA3AF', padding: '3rem' }}>
-                No tienes reservas aún. ¡Haz tu primera reserva!
-              </td></tr>
-            ) : reservas.map(r => {
-              const noches = Math.ceil((new Date(r.fecha_salida) - new Date(r.fecha_entrada)) / 86400000)
-              return (
-                <tr key={r.id}>
-                  <td style={cell}><span style={{ fontFamily: 'monospace', fontWeight: 700, color: '#3D1A06' }}>{r.codigo}</span></td>
-                  <td style={cell}>
-                    <div style={{ fontWeight: 600 }}>{r.sede?.nombre}</div>
-                    <div style={{ fontSize: '0.78rem', color: '#9CA3AF' }}>Hab. {r.habitacion?.numero} — {r.habitacion?.tipo?.replace(/_/g,' ')}</div>
-                  </td>
-                  <td style={cell}>
-                    <div style={{ fontSize: '0.82rem' }}>{new Date(r.fecha_entrada).toLocaleDateString('es-PE')}</div>
-                    <div style={{ fontSize: '0.78rem', color: '#9CA3AF' }}>→ {new Date(r.fecha_salida).toLocaleDateString('es-PE')}</div>
-                  </td>
-                  <td style={{ ...cell, textAlign: 'center' }}>{noches}</td>
-                  <td style={cell}><span style={{ fontWeight: 700 }}>S/ {r.precio_total}</span></td>
-                  <td style={cell}><EstadoBadge estado={r.estado}/></td>
-                  <td style={{ ...cell, textAlign: 'center' }}>
-                    <div style={{ display: 'flex', gap: '0.4rem', justifyContent: 'center' }}>
-                      {['pendiente','confirmada','checkin'].includes(r.estado) && (
-                        <button onClick={() => setQrReserva(r)}
-                          style={{ padding: '4px 10px', borderRadius: 6, border: '1px solid #E5E7EB', background: 'white', fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer' }}
-                          title="Ver QR">
-                          📱 QR
-                        </button>
-                      )}
-                      {['pendiente', 'confirmada'].includes(r.estado) && (
-                        <button onClick={() => handleCancelar(r.id)}
-                          style={{ padding: '4px 10px', borderRadius: 6, border: '1px solid #FEE2E2', background: '#FEF2F2', color: '#DC2626', fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer' }}>
-                          Cancelar
-                        </button>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              )
-            })}
-          </tbody>
-        </table>
-      </div>
+      {/* Mobile card list */}
+      {isMobile ? (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+          {loading ? (
+            [1,2,3].map(i => (
+              <div key={i} style={{ background: 'white', borderRadius: 12, border: '1px solid #E5E7EB', padding: '1rem', height: 120, backgroundColor: '#F9FAFB' }} />
+            ))
+          ) : reservas.length === 0 ? (
+            <div style={{ background: 'white', borderRadius: 12, border: '1px solid #E5E7EB', padding: '2.5rem 1rem', textAlign: 'center', color: '#9CA3AF', fontSize: '0.875rem' }}>
+              No tienes reservas aún. ¡Haz tu primera reserva!
+            </div>
+          ) : reservas.map(r => {
+            const noches = Math.ceil((new Date(r.fecha_salida) - new Date(r.fecha_entrada)) / 86400000)
+            return (
+              <div key={r.id} style={{ background: 'white', borderRadius: 12, border: '1px solid #E5E7EB', padding: '1rem', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+                {/* Top row: code + badge */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.65rem' }}>
+                  <span style={{ fontFamily: 'monospace', fontWeight: 800, fontSize: '1rem', color: '#3D1A06' }}>{r.codigo}</span>
+                  <EstadoBadge estado={r.estado}/>
+                </div>
+                {/* Location + dates */}
+                <div style={{ fontSize: '0.82rem', color: '#374151', marginBottom: '0.3rem', fontWeight: 600 }}>
+                  {r.sede?.nombre} · Hab. {r.habitacion?.numero}
+                </div>
+                <div style={{ fontSize: '0.78rem', color: '#9CA3AF', marginBottom: '0.65rem' }}>
+                  {r.habitacion?.tipo?.replace(/_/g,' ')}
+                </div>
+                <div style={{ display: 'flex', gap: '1rem', marginBottom: '0.75rem' }}>
+                  <div>
+                    <div style={{ fontSize: '0.68rem', color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Entrada</div>
+                    <div style={{ fontSize: '0.8rem', fontWeight: 600 }}>{new Date(r.fecha_entrada).toLocaleDateString('es-PE')}</div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '0.68rem', color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Salida</div>
+                    <div style={{ fontSize: '0.8rem', fontWeight: 600 }}>{new Date(r.fecha_salida).toLocaleDateString('es-PE')}</div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '0.68rem', color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Noches</div>
+                    <div style={{ fontSize: '0.8rem', fontWeight: 600 }}>{noches}</div>
+                  </div>
+                  <div style={{ marginLeft: 'auto', textAlign: 'right' }}>
+                    <div style={{ fontSize: '0.68rem', color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Total</div>
+                    <div style={{ fontSize: '0.9rem', fontWeight: 800, color: '#3D1A06' }}>S/ {r.precio_total}</div>
+                  </div>
+                </div>
+                {/* Actions */}
+                <div style={{ display: 'flex', gap: '0.5rem', borderTop: '1px solid #F3F4F6', paddingTop: '0.65rem' }}>
+                  {['pendiente','confirmada','checkin'].includes(r.estado) && (
+                    <button onClick={() => setQrReserva(r)}
+                      style={{ flex: 1, padding: '0.5rem', borderRadius: 8, border: '1px solid #E5E7EB', background: 'white', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer' }}>
+                      📱 Ver QR
+                    </button>
+                  )}
+                  {['pendiente','confirmada'].includes(r.estado) && (
+                    <button onClick={() => handleCancelar(r.id, r.codigo)}
+                      style={{ flex: 1, padding: '0.5rem', borderRadius: 8, border: '1px solid #FEE2E2', background: '#FEF2F2', color: '#DC2626', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer' }}>
+                      Cancelar
+                    </button>
+                  )}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      ) : (
+        /* Desktop table */
+        <div className="table-scroll" style={{ background: 'white', borderRadius: 12, border: '1px solid #E5E7EB' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead>
+              <tr>
+                <th style={head}>Código</th>
+                <th style={head}>Sede / Habitación</th>
+                <th style={head}>Fechas</th>
+                <th style={head}>Noches</th>
+                <th style={head}>Total</th>
+                <th style={head}>Estado</th>
+                <th style={{ ...head, textAlign: 'center' }}>Acción</th>
+              </tr>
+            </thead>
+            <tbody>
+              {loading ? (
+                <tr><td colSpan={7} style={{ ...cell, textAlign: 'center', color: '#9CA3AF' }}>Cargando...</td></tr>
+              ) : reservas.length === 0 ? (
+                <tr><td colSpan={7} style={{ ...cell, textAlign: 'center', color: '#9CA3AF', padding: '3rem' }}>
+                  No tienes reservas aún. ¡Haz tu primera reserva!
+                </td></tr>
+              ) : reservas.map(r => {
+                const noches = Math.ceil((new Date(r.fecha_salida) - new Date(r.fecha_entrada)) / 86400000)
+                return (
+                  <tr key={r.id}>
+                    <td style={cell}><span style={{ fontFamily: 'monospace', fontWeight: 700, color: '#3D1A06' }}>{r.codigo}</span></td>
+                    <td style={cell}>
+                      <div style={{ fontWeight: 600 }}>{r.sede?.nombre}</div>
+                      <div style={{ fontSize: '0.78rem', color: '#9CA3AF' }}>Hab. {r.habitacion?.numero} — {r.habitacion?.tipo?.replace(/_/g,' ')}</div>
+                    </td>
+                    <td style={cell}>
+                      <div style={{ fontSize: '0.82rem' }}>{new Date(r.fecha_entrada).toLocaleDateString('es-PE')}</div>
+                      <div style={{ fontSize: '0.78rem', color: '#9CA3AF' }}>→ {new Date(r.fecha_salida).toLocaleDateString('es-PE')}</div>
+                    </td>
+                    <td style={{ ...cell, textAlign: 'center' }}>{noches}</td>
+                    <td style={cell}><span style={{ fontWeight: 700 }}>S/ {r.precio_total}</span></td>
+                    <td style={cell}><EstadoBadge estado={r.estado}/></td>
+                    <td style={{ ...cell, textAlign: 'center' }}>
+                      <div style={{ display: 'flex', gap: '0.4rem', justifyContent: 'center' }}>
+                        {['pendiente','confirmada','checkin'].includes(r.estado) && (
+                          <button onClick={() => setQrReserva(r)}
+                            style={{ padding: '4px 10px', borderRadius: 6, border: '1px solid #E5E7EB', background: 'white', fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer' }}
+                            title="Ver QR">
+                            📱 QR
+                          </button>
+                        )}
+                        {['pendiente','confirmada'].includes(r.estado) && (
+                          <button onClick={() => handleCancelar(r.id, r.codigo)}
+                            style={{ padding: '4px 10px', borderRadius: 6, border: '1px solid #FEE2E2', background: '#FEF2F2', color: '#DC2626', fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer' }}>
+                            Cancelar
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
 
+      {/* Pagination */}
       {meta?.last_page > 1 && (
         <div style={{ display: 'flex', justifyContent: 'center', gap: '0.5rem', marginTop: '1rem' }}>
           {Array.from({ length: meta.last_page }, (_, i) => i + 1).map(p => (
@@ -387,9 +465,9 @@ export default function MisReservas() {
         </Modal>
       )}
 
-      {qrReserva && (
-        <ModalQR reserva={qrReserva} onClose={() => setQrReserva(null)}/>
-      )}
+      {qrReserva && <ModalQR reserva={qrReserva} onClose={() => setQrReserva(null)}/>}
+
+      {dialog}
     </div>
   )
 }

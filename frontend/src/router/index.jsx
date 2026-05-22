@@ -1,28 +1,43 @@
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { AuthProvider, useAuth } from '../context/AuthContext'
+import { ToastProvider } from '../context/ToastContext'
 import PrivateRoute from './PrivateRoute'
 import AppLayout    from '../components/layouts/AppLayout'
 
 // Public pages
 import Landing              from '../pages/public/Landing'
 import HabitacionesPublicas from '../pages/public/HabitacionesPublicas'
+import Restaurante          from '../pages/public/Restaurante'
 import Login    from '../pages/auth/Login'
 import Register from '../pages/auth/Register'
 
 // Admin pages
-import AdminDashboard from '../pages/admin/Dashboard'
-import Habitaciones   from '../pages/admin/Habitaciones'
-import Configuracion  from '../pages/admin/Configuracion'
-import Usuarios       from '../pages/admin/Usuarios'
-import Sedes          from '../pages/admin/Sedes'
+import AdminDashboard    from '../pages/admin/Dashboard'
+import Habitaciones      from '../pages/admin/Habitaciones'
+import Configuracion     from '../pages/admin/Configuracion'
+import Usuarios          from '../pages/admin/Usuarios'
+import Sedes             from '../pages/admin/Sedes'
+import Servicios         from '../pages/admin/Servicios'
+import TarifasTemporada  from '../pages/admin/TarifasTemporada'
 
-// Recepcion / shared pages
+// Recepcion pages
 import ReservasRecepcion from '../pages/recepcion/Reservas'
+import Hoy               from '../pages/recepcion/Hoy'
+import CajaDiaria        from '../pages/recepcion/CajaDiaria'
 
 // Cliente pages
 import MisReservas         from '../pages/cliente/MisReservas'
 import ReservarHabitacion  from '../pages/cliente/ReservarHabitacion'
 import PagoReserva         from '../pages/cliente/PagoReserva'
+import MiPerfil            from '../pages/cliente/MiPerfil'
+
+// Admin / Recepcion shared pages
+import Pagos               from '../pages/admin/Pagos'
+import Platos              from '../pages/admin/Platos'
+import DashboardGerencial  from '../pages/gerente/DashboardGerencial'
+import Cocheras            from '../pages/admin/Cocheras'
+import MisCocheras         from '../pages/cliente/MisCocheras'
+import Cocina              from '../pages/cocina/Cocina'
 
 // Placeholder for unbuilt pages
 function Placeholder({ title }) {
@@ -63,11 +78,13 @@ export default function AppRouter() {
   return (
     <BrowserRouter>
       <AuthProvider>
+        <ToastProvider>
         <Routes>
 
           {/* ── Public ── */}
           <Route path="/"              element={<Landing />} />
           <Route path="/habitaciones"  element={<HabitacionesPublicas />} />
+          <Route path="/restaurant"    element={<Restaurante />} />
           <Route path="/login"         element={<GuestRoute><Login /></GuestRoute>} />
           <Route path="/register"      element={<GuestRoute><Register /></GuestRoute>} />
 
@@ -81,8 +98,13 @@ export default function AppRouter() {
             <Route path="habitaciones"    element={<Habitaciones />} />
             <Route path="configuracion"   element={<Configuracion />} />
             <Route path="reservas"        element={<ReservasRecepcion />} />
+            <Route path="pagos"           element={<Pagos />} />
+            <Route path="cocheras"        element={<Cocheras />} />
             <Route path="sedes"           element={<Sedes />} />
             <Route path="usuarios"        element={<Usuarios />} />
+            <Route path="servicios"       element={<Servicios />} />
+            <Route path="tarifas"         element={<TarifasTemporada />} />
+            <Route path="platos"          element={<Platos />} />
           </Route>
 
           {/* ── Recepcionista ── */}
@@ -91,11 +113,11 @@ export default function AppRouter() {
               <AppLayout />
             </PrivateRoute>
           }>
-            <Route index                  element={<Placeholder title="Dashboard Recepción" />} />
+            <Route index                  element={<Hoy />} />
             <Route path="habitaciones"    element={<Habitaciones />} />
             <Route path="reservas"        element={<ReservasRecepcion />} />
-            <Route path="checkin"         element={<Placeholder title="Check-in" />} />
-            <Route path="checkout"        element={<Placeholder title="Check-out" />} />
+            <Route path="pagos"           element={<Pagos />} />
+            <Route path="caja"            element={<CajaDiaria />} />
           </Route>
 
           {/* ── Cliente ── */}
@@ -107,7 +129,17 @@ export default function AppRouter() {
             <Route index              element={<MisReservas />} />
             <Route path="nueva"       element={<ReservarHabitacion />} />
             <Route path="pago/:reservaId" element={<PagoReserva />} />
-            <Route path="perfil"      element={<Configuracion />} />
+            <Route path="cochera"     element={<MisCocheras />} />
+            <Route path="perfil"      element={<MiPerfil />} />
+          </Route>
+
+          {/* ── Cocina ── */}
+          <Route path="/cocina" element={
+            <PrivateRoute roles={['administrador', 'recepcionista', 'cocinero']}>
+              <AppLayout />
+            </PrivateRoute>
+          }>
+            <Route index element={<Cocina />} />
           </Route>
 
           {/* ── Gerente / Contador ── */}
@@ -116,7 +148,7 @@ export default function AppRouter() {
               <AppLayout />
             </PrivateRoute>
           }>
-            <Route index             element={<Placeholder title="Dashboard Gerencial" />} />
+            <Route index             element={<DashboardGerencial />} />
             <Route path="reportes"   element={<Placeholder title="Reportes" />} />
             <Route path="finanzas"   element={<Placeholder title="Finanzas" />} />
           </Route>
@@ -138,6 +170,7 @@ export default function AppRouter() {
           <Route path="*" element={<Navigate to="/" replace />} />
 
         </Routes>
+        </ToastProvider>
       </AuthProvider>
     </BrowserRouter>
   )
