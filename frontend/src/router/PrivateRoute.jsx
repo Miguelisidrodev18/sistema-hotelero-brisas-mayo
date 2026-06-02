@@ -1,8 +1,9 @@
-import { Navigate } from 'react-router-dom'
+import { Navigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 
 export default function PrivateRoute({ children, roles }) {
   const { user, loading, isAuthenticated } = useAuth()
+  const location = useLocation()
 
   if (loading) return (
     <div className="min-h-screen flex items-center justify-center">
@@ -10,7 +11,10 @@ export default function PrivateRoute({ children, roles }) {
     </div>
   )
 
-  if (!isAuthenticated) return <Navigate to="/login" replace />
+  if (!isAuthenticated) {
+    const next = encodeURIComponent(location.pathname + location.search)
+    return <Navigate to={`/login?next=${next}`} replace />
+  }
 
   if (roles && !roles.includes(user.role)) return <Navigate to="/no-autorizado" replace />
 

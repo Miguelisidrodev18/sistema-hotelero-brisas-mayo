@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Search, CheckCircle, XCircle, RefreshCw, Banknote, Smartphone, Building2, CreditCard, Clock, TrendingUp, FileDown } from 'lucide-react'
+import { Search, CheckCircle, XCircle, RefreshCw, Banknote, Smartphone, Building2, CreditCard, Clock, TrendingUp, FileDown, Printer, MessageCircle } from 'lucide-react'
 import { pagosApi } from '../../api/pagos'
 import { useToast } from '../../context/ToastContext'
 import axiosClient from '../../api/axiosClient'
@@ -104,6 +104,18 @@ export default function Pagos() {
   }
 
   function setFilter(k, v) { setFilters(f => ({ ...f, [k]: v, page: 1 })) }
+
+  function abrirRecibo(codigo, formato) {
+    window.open(`${window.location.origin}/recibo/${codigo}?f=${formato}`, '_blank')
+  }
+
+  function enviarWhatsapp(pago) {
+    const url = `${window.location.origin}/recibo/${pago.reserva.codigo}`
+    const cliente = pago.reserva?.cliente?.name ?? ''
+    const monto   = `S/ ${Number(pago.monto).toFixed(2)}`
+    const msg = `Hola${cliente ? ` ${cliente}` : ''}, aquí tienes tu recibo de pago del Hotel Brisas de Mayo:\n\n🧾 Código: ${pago.reserva.codigo}\n💰 Monto: ${monto}\n\n${url}`
+    window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank')
+  }
 
   const inp = { border: '1.5px solid #E5E7EB', borderRadius: 10, padding: '0.55rem 0.9rem', fontSize: '0.85rem', outline: 'none', background: 'white' }
 
@@ -220,25 +232,46 @@ export default function Pagos() {
                         : '—'}
                     </td>
                     <td style={{ padding: '0.85rem 1rem' }}>
-                      {pago.estado === 'pendiente' && (
-                        <div style={{ display: 'flex', gap: '0.4rem' }}>
-                          <button
-                            onClick={() => accion('verificar', pago.id)}
-                            disabled={actionId === pago.id}
-                            style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 12px', borderRadius: 8, border: 'none', background: '#DCFCE7', color: '#15803D', fontWeight: 700, fontSize: '0.75rem', cursor: 'pointer', opacity: actionId === pago.id ? 0.6 : 1 }}>
-                            <CheckCircle size={13}/> Verificar
-                          </button>
-                          <button
-                            onClick={() => accion('rechazar', pago.id)}
-                            disabled={actionId === pago.id}
-                            style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 12px', borderRadius: 8, border: 'none', background: '#FEE2E2', color: '#DC2626', fontWeight: 700, fontSize: '0.75rem', cursor: 'pointer', opacity: actionId === pago.id ? 0.6 : 1 }}>
-                            <XCircle size={13}/> Rechazar
-                          </button>
-                        </div>
-                      )}
-                      {pago.estado !== 'pendiente' && (
-                        <span style={{ fontSize: '0.75rem', color: '#9CA3AF' }}>—</span>
-                      )}
+                      <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                        {pago.estado === 'pendiente' && (
+                          <>
+                            <button
+                              onClick={() => accion('verificar', pago.id)}
+                              disabled={actionId === pago.id}
+                              style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px 10px', borderRadius: 7, border: 'none', background: '#DCFCE7', color: '#15803D', fontWeight: 700, fontSize: '0.73rem', cursor: 'pointer', opacity: actionId === pago.id ? 0.6 : 1 }}>
+                              <CheckCircle size={12}/> Verificar
+                            </button>
+                            <button
+                              onClick={() => accion('rechazar', pago.id)}
+                              disabled={actionId === pago.id}
+                              style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px 10px', borderRadius: 7, border: 'none', background: '#FEE2E2', color: '#DC2626', fontWeight: 700, fontSize: '0.73rem', cursor: 'pointer', opacity: actionId === pago.id ? 0.6 : 1 }}>
+                              <XCircle size={12}/> Rechazar
+                            </button>
+                          </>
+                        )}
+                        {pago.reserva?.codigo && (
+                          <>
+                            <button
+                              onClick={() => abrirRecibo(pago.reserva.codigo, '80')}
+                              title="Recibo 80 mm"
+                              style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px 10px', borderRadius: 7, border: 'none', background: '#F1F5F9', color: '#334155', fontWeight: 700, fontSize: '0.73rem', cursor: 'pointer' }}>
+                              <Printer size={12}/> 80mm
+                            </button>
+                            <button
+                              onClick={() => abrirRecibo(pago.reserva.codigo, 'a4')}
+                              title="Recibo A4"
+                              style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px 10px', borderRadius: 7, border: 'none', background: '#EDE9FE', color: '#6D28D9', fontWeight: 700, fontSize: '0.73rem', cursor: 'pointer' }}>
+                              <Printer size={12}/> A4
+                            </button>
+                            <button
+                              onClick={() => enviarWhatsapp(pago)}
+                              title="Enviar por WhatsApp"
+                              style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px 10px', borderRadius: 7, border: 'none', background: '#DCFCE7', color: '#16A34A', fontWeight: 700, fontSize: '0.73rem', cursor: 'pointer' }}>
+                              <MessageCircle size={12}/> WA
+                            </button>
+                          </>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}

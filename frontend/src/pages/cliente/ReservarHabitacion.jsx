@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { Users, BedDouble, MapPin, Eye, ArrowLeft, Calendar } from 'lucide-react'
+import { Users, BedDouble, MapPin, Eye, ArrowLeft, ChevronLeft, ChevronRight } from 'lucide-react'
 import { habitacionesApi } from '../../api/habitaciones'
 import { sedesApi } from '../../api/sedes'
 import { reservasApi } from '../../api/reservas'
@@ -63,6 +63,160 @@ function HabCard({ hab, selected, onSelect }) {
   )
 }
 
+const MESES_CAL = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
+const DIAS_CAL  = ['D','L','M','M','J','V','S']
+
+function CalendarioReserva({ fechasOcupadas = [], entrada, salida, today, onSelect }) {
+  const refBase = entrada ? new Date(entrada + 'T12:00:00') : new Date()
+  const [base, setBase] = useState({ y: refBase.getFullYear(), m: refBase.getMonth() })
+  const [hovered, setHovered] = useState(null)
+
+  const ocupados = useMemo(() => {
+    const s = new Set()
+    fechasOcupadas.forEach(({ entrada: e, salida: sa }) => {
+      const d = new Date(e + 'T12:00:00'), fin = new Date(sa + 'T12:00:00')
+      while (d <= fin) { s.add(d.toISOString().split('T')[0]); d.setDate(d.getDate() + 1) }
+    })
+    return s
+  }, [fechasOcupadas])
+
+  const pad = n => String(n).padStart(2, '0')
+  const { y, m } = base
+  const primerDia = new Date(y, m, 1).getDay()
+  const diasEnMes = new Date(y, m + 1, 0).getDate()
+  const todayStr  = today
+
+  // range preview: when picking salida, show from entrada to hovered
+  const rangeEnd = salida || (entrada && hovered && hovered > entrada ? hovered : null)
+
+  function hasOcupadoInRange(start, end) {
+    const d = new Date(start + 'T12:00:00')
+    d.setDate(d.getDate() + 1)
+    const fin = new Date(end + 'T12:00:00')
+    while (d < fin) {
+      if (ocupados.has(d.toISOString().split('T')[0])) return true
+      d.setDate(d.getDate() + 1)
+    }
+    return false
+  }
+
+  function handleClick(dateStr) {
+    if (ocupados.has(dateStr) || dateStr < todayStr) return
+    if (!entrada || (entrada && salida)) {
+      // start fresh selection
+      onSelect(dateStr, '')
+    } else {
+      // picking salida
+      if (dateStr <= entrada) { onSelect(dateStr, ''); return }
+      if (hasOcupadoInRange(entrada, dateStr)) {
+        // range blocked — reset and start new entrada from this date
+        onSelect(dateStr, ''); return
+      }
+      onSelect(entrada, dateStr)
+    }
+  }
+
+  function navMonth(dir) {
+    setBase(b => {
+      const d = new Date(b.y, b.m + dir, 1)
+      return { y: d.getFullYear(), m: d.getMonth() }
+    })
+  }
+
+  const picking = !entrada ? 'entrada' : (!salida ? 'salida' : 'done')
+
+  return (
+    <div>
+      {/* Instrucción dinámica */}
+      <div style={{ marginBottom: '0.85rem', padding: '0.6rem 0.9rem', borderRadius: 10, background: picking === 'done' ? '#F0FDF4' : '#FFF7ED', border: `1px solid ${picking === 'done' ? '#BBF7D0' : '#FED7AA'}` }}>
+        <p style={{ margin: 0, fontSize: '0.8rem', fontWeight: 600, color: picking === 'done' ? '#166534' : '#92400E' }}>
+          {picking === 'entrada' && '📅 Selecciona la fecha de entrada'}
+          {picking === 'salida'  && '📅 Ahora selecciona la fecha de salida'}
+          {picking === 'done'    && `✅ ${new Date(entrada + 'T12:00:00').toLocaleDateString('es-PE', { weekday:'short', day:'numeric', month:'short' })} → ${new Date(salida + 'T12:00:00').toLocaleDateString('es-PE', { weekday:'short', day:'numeric', month:'short' })}`}
+        </p>
+      </div>
+
+      {/* Navegación */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+        <button onClick={() => navMonth(-1)} style={{ background: 'none', border: '1.5px solid #E5E7EB', borderRadius: 8, width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#6B7280' }}>
+          <ChevronLeft size={16}/>
+        </button>
+        <span style={{ fontWeight: 800, fontSize: '0.92rem', color: '#111827' }}>
+          {MESES_CAL[m]} {y}
+        </span>
+        <button onClick={() => navMonth(1)} style={{ background: 'none', border: '1.5px solid #E5E7EB', borderRadius: 8, width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#6B7280' }}>
+          <ChevronRight size={16}/>
+        </button>
+      </div>
+
+      {/* Grilla */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 2 }}>
+        {/* Cabecera días */}
+        {DIAS_CAL.map((d, i) => (
+          <div key={i} style={{ textAlign: 'center', fontSize: '0.72rem', fontWeight: 700, color: i === 0 || i === 6 ? '#F5922E' : '#9CA3AF', paddingBottom: 5 }}>{d}</div>
+        ))}
+
+        {/* Celdas vacías */}
+        {Array.from({ length: primerDia }, (_, i) => <div key={`v-${i}`}/>)}
+
+        {/* Días */}
+        {Array.from({ length: diasEnMes }, (_, i) => {
+          const dia     = i + 1
+          const ds      = `${y}-${pad(m + 1)}-${pad(dia)}`
+          const isOcup  = ocupados.has(ds)
+          const isPast  = ds < todayStr
+          const isHoy   = ds === todayStr
+          const isEnt   = ds === entrada
+          const isSal   = ds === salida
+          const inRange = rangeEnd && entrada && ds > entrada && ds < rangeEnd && !isOcup
+          const blockPreview = entrada && !salida && hovered && hovered > entrada
+            && ds > entrada && ds < hovered && ocupados.has(ds)
+          const isHov   = hovered === ds && !isOcup && !isPast
+
+          let bg = 'transparent', color = '#374151', fw = 400
+          let cursor = 'pointer', border = 'none', scale = 'scale(1)'
+          let boxShadow = 'none'
+
+          if (isOcup || isPast)    { color = isOcup ? 'white' : '#D1D5DB'; bg = isOcup ? '#EF4444' : 'transparent'; cursor = 'not-allowed' }
+          if (isOcup)              { boxShadow = '0 2px 6px rgba(239,68,68,0.3)' }
+          if (isEnt || isSal)      { bg = '#F5922E'; color = 'white'; fw = 800; boxShadow = '0 3px 8px rgba(245,146,46,0.4)'; scale = 'scale(1.1)' }
+          if (inRange)             { bg = '#FFF0DE'; color = '#92400E' }
+          if (blockPreview)        { bg = '#FECACA'; color = '#DC2626'; cursor = 'not-allowed' }
+          if (isHov && !isEnt && !isSal) { bg = '#FED7AA'; color = '#92400E'; fw = 600; scale = 'scale(1.08)' }
+          if (isHoy && !isEnt && !isSal) { border = '2px solid #F5922E' }
+
+          return (
+            <div key={dia} style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '1.5px 0' }}>
+              <div
+                onMouseEnter={() => !isOcup && !isPast && setHovered(ds)}
+                onMouseLeave={() => setHovered(null)}
+                onClick={() => handleClick(ds)}
+                title={isOcup ? 'Fecha ocupada' : isPast ? '' : picking === 'salida' ? 'Fecha de salida' : 'Fecha de entrada'}
+                style={{ width: 34, height: 34, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: bg, color, fontWeight: fw, cursor, fontSize: '0.78rem', border, boxShadow, transform: scale, transition: 'all 0.12s', userSelect: 'none' }}>
+                {dia}
+              </div>
+            </div>
+          )
+        })}
+      </div>
+
+      {/* Leyenda */}
+      <div style={{ display: 'flex', gap: 12, marginTop: 10, flexWrap: 'wrap' }}>
+        {[
+          { color: '#EF4444', label: 'Ocupado' },
+          { color: '#F5922E', label: 'Seleccionado' },
+          { color: '#FFF0DE', border: '1px solid #FED7AA', label: 'Rango' },
+        ].map(({ color, border: b, label }) => (
+          <span key={label} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: '0.68rem', color: '#9CA3AF' }}>
+            <span style={{ width: 10, height: 10, borderRadius: '50%', background: color, border: b, display: 'inline-block', flexShrink: 0 }}/>
+            {label}
+          </span>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 function StepIndicator({ step }) {
   const steps = [{ n: 1, label: 'Elige habitación' }, { n: 2, label: 'Fechas' }, { n: 3, label: 'Pago' }]
   return (
@@ -83,7 +237,8 @@ function StepIndicator({ step }) {
 export default function ReservarHabitacion() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
-  const preHabId = searchParams.get('hab') ? Number(searchParams.get('hab')) : null
+  const preHabId    = searchParams.get('hab')     ? Number(searchParams.get('hab')) : null
+  const preEntrada  = searchParams.get('entrada') ?? ''
   const { isMobile } = useBreakpoint()
 
   const [step, setStep]               = useState(preHabId ? 2 : 1)
@@ -91,21 +246,25 @@ export default function ReservarHabitacion() {
   const [sedes, setSedes]             = useState([])
   const [selected, setSelected]       = useState(null)
   const [filtroSede, setFiltroSede]   = useState('')
+  const [filtroPiso, setFiltroPiso]   = useState(null) // null = todos
   const [loading, setLoading]         = useState(true)
   const [saving, setSaving]           = useState(false)
   const [error, setError]             = useState('')
 
   const today = new Date().toISOString().split('T')[0]
-  const [form, setForm] = useState({ fecha_entrada: '', fecha_salida: '', num_huespedes: 1 })
+  const [form, setForm] = useState({ fecha_entrada: preEntrada, fecha_salida: '', num_huespedes: 1 })
 
   // Cargar habitaciones disponibles
   useEffect(() => {
+    setFiltroPiso(null) // resetear piso al cambiar sede
     const params = filtroSede ? { sede: filtroSede } : {}
     habitacionesApi.getDisponibles(params)
       .then(r => {
-        setHabitaciones(r.data)
+        // ordenar por piso → numero
+        const sorted = [...r.data].sort((a, b) => a.piso - b.piso || a.numero - b.numero)
+        setHabitaciones(sorted)
         if (preHabId) {
-          const hab = r.data.find(h => h.id === preHabId)
+          const hab = sorted.find(h => h.id === preHabId)
           if (hab) setSelected(hab)
         }
       })
@@ -156,35 +315,90 @@ export default function ReservarHabitacion() {
       <StepIndicator step={step}/>
 
       {/* ── PASO 1: Elegir habitación ── */}
-      {step === 1 && (
-        <div>
-          {/* Filtro sede */}
-          <div style={{ display: 'flex', gap: '0.6rem', marginBottom: '1.5rem', flexWrap: 'wrap' }}>
-            <button onClick={() => setFiltroSede('')}
-              style={{ padding: '6px 16px', borderRadius: 9999, border: '1.5px solid', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer', borderColor: !filtroSede ? '#F5922E' : '#E5E7EB', background: !filtroSede ? '#FFF7ED' : 'white', color: !filtroSede ? '#F5922E' : '#6B7280' }}>
-              Todas
-            </button>
-            {sedes.map(s => (
-              <button key={s.id} onClick={() => setFiltroSede(s.slug)}
-                style={{ padding: '6px 16px', borderRadius: 9999, border: '1.5px solid', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer', borderColor: filtroSede === s.slug ? '#F5922E' : '#E5E7EB', background: filtroSede === s.slug ? '#FFF7ED' : 'white', color: filtroSede === s.slug ? '#F5922E' : '#6B7280' }}>
-                {s.nombre}
-              </button>
-            ))}
-          </div>
+      {step === 1 && (() => {
+        // pisos únicos disponibles (ya ordenados porque habitaciones está sorted)
+        const pisos = [...new Set(habitaciones.map(h => h.piso))].sort((a, b) => a - b)
+        const habFiltradas = filtroPiso !== null
+          ? habitaciones.filter(h => h.piso === filtroPiso)
+          : habitaciones
 
-          {loading ? (
-            <p style={{ color: '#9CA3AF', textAlign: 'center', padding: '3rem' }}>Cargando habitaciones...</p>
-          ) : habitaciones.length === 0 ? (
-            <p style={{ color: '#9CA3AF', textAlign: 'center', padding: '3rem' }}>No hay habitaciones disponibles.</p>
-          ) : (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: '1rem' }}>
-              {habitaciones.map(h => (
-                <HabCard key={h.id} hab={h} selected={selected} onSelect={hab => { setSelected(hab); setStep(2) }}/>
+        // agrupar por piso para mostrar separadores
+        const grupos = pisos
+          .filter(p => filtroPiso === null || p === filtroPiso)
+          .map(p => ({ piso: p, habs: habFiltradas.filter(h => h.piso === p) }))
+          .filter(g => g.habs.length > 0)
+
+        const chipSede = { padding: '6px 16px', borderRadius: 9999, border: '1.5px solid', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer' }
+
+        return (
+          <div>
+            {/* Chips sede */}
+            <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.75rem', flexWrap: 'wrap', alignItems: 'center' }}>
+              <span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '0.06em', marginRight: 2 }}>Sede</span>
+              <button onClick={() => setFiltroSede('')}
+                style={{ ...chipSede, borderColor: !filtroSede ? '#F5922E' : '#E5E7EB', background: !filtroSede ? '#FFF7ED' : 'white', color: !filtroSede ? '#F5922E' : '#6B7280' }}>
+                Todas
+              </button>
+              {sedes.map(s => (
+                <button key={s.id} onClick={() => setFiltroSede(s.slug)}
+                  style={{ ...chipSede, borderColor: filtroSede === s.slug ? '#F5922E' : '#E5E7EB', background: filtroSede === s.slug ? '#FFF7ED' : 'white', color: filtroSede === s.slug ? '#F5922E' : '#6B7280' }}>
+                  {s.nombre}
+                </button>
               ))}
             </div>
-          )}
-        </div>
-      )}
+
+            {/* Chips piso */}
+            {!loading && pisos.length > 1 && (
+              <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                <span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '0.06em', marginRight: 2 }}>Piso</span>
+                <button onClick={() => setFiltroPiso(null)}
+                  style={{ ...chipSede, borderColor: filtroPiso === null ? '#3D1A06' : '#E5E7EB', background: filtroPiso === null ? '#3D1A06' : 'white', color: filtroPiso === null ? 'white' : '#6B7280' }}>
+                  Todos
+                </button>
+                {pisos.map(p => (
+                  <button key={p} onClick={() => setFiltroPiso(p === filtroPiso ? null : p)}
+                    style={{ ...chipSede, borderColor: filtroPiso === p ? '#3D1A06' : '#E5E7EB', background: filtroPiso === p ? '#3D1A06' : 'white', color: filtroPiso === p ? 'white' : '#6B7280', minWidth: 72 }}>
+                    🏢 Piso {p}
+                  </button>
+                ))}
+              </div>
+            )}
+            {!loading && pisos.length === 1 && (
+              <div style={{ marginBottom: '1.25rem' }}/>
+            )}
+
+            {loading ? (
+              <p style={{ color: '#9CA3AF', textAlign: 'center', padding: '3rem' }}>Cargando habitaciones...</p>
+            ) : habFiltradas.length === 0 ? (
+              <p style={{ color: '#9CA3AF', textAlign: 'center', padding: '3rem' }}>No hay habitaciones disponibles.</p>
+            ) : (
+              <div>
+                {grupos.map(({ piso, habs }) => (
+                  <div key={piso} style={{ marginBottom: '2rem' }}>
+                    {/* Separador de piso */}
+                    {pisos.length > 1 && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1rem' }}>
+                        <div style={{ background: '#3D1A06', color: 'white', fontSize: '0.72rem', fontWeight: 800, padding: '4px 14px', borderRadius: 9999, letterSpacing: '0.05em', flexShrink: 0 }}>
+                          Piso {piso}
+                        </div>
+                        <div style={{ flex: 1, height: 1, background: '#F3F4F6' }}/>
+                        <span style={{ fontSize: '0.72rem', color: '#9CA3AF', flexShrink: 0 }}>
+                          {habs.length} hab{habs.length !== 1 ? 's' : ''}
+                        </span>
+                      </div>
+                    )}
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: '1rem' }}>
+                      {habs.map(h => (
+                        <HabCard key={h.id} hab={h} selected={selected} onSelect={hab => { setSelected(hab); setStep(2) }}/>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )
+      })()}
 
       {/* ── PASO 2: Fechas y confirmación ── */}
       {step === 2 && selected && (
@@ -221,22 +435,16 @@ export default function ReservarHabitacion() {
           <div>
             <p style={{ fontSize: '0.72rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#6B7280', marginBottom: '0.75rem' }}>Datos de la estadía</p>
 
-            <div style={{ background: 'white', borderRadius: 16, border: '1px solid #E5E7EB', padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+            <div style={{ background: 'white', borderRadius: 16, border: '1px solid #E5E7EB', padding: '1.25rem 1.35rem', display: 'flex', flexDirection: 'column', gap: '1.1rem' }}>
 
-              <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '0.75rem' }}>
-                <div>
-                  <label style={lbl}><Calendar size={13}/> Fecha de entrada *</label>
-                  <input type="date" min={today} value={form.fecha_entrada}
-                    onChange={e => setForm(f => ({ ...f, fecha_entrada: e.target.value, fecha_salida: '' }))}
-                    style={inp}/>
-                </div>
-                <div>
-                  <label style={lbl}><Calendar size={13}/> Fecha de salida *</label>
-                  <input type="date" min={form.fecha_entrada || today} value={form.fecha_salida}
-                    onChange={e => setForm(f => ({ ...f, fecha_salida: e.target.value }))}
-                    style={inp} disabled={!form.fecha_entrada}/>
-                </div>
-              </div>
+              {/* Calendario dinámico */}
+              <CalendarioReserva
+                fechasOcupadas={selected.fechas_ocupadas ?? []}
+                entrada={form.fecha_entrada}
+                salida={form.fecha_salida}
+                today={today}
+                onSelect={(e, s) => setForm(f => ({ ...f, fecha_entrada: e, fecha_salida: s }))}
+              />
 
               <div>
                 <label style={lbl}><Users size={13}/> N° de huéspedes *</label>

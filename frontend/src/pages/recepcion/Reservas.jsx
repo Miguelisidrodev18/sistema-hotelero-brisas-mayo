@@ -1,9 +1,22 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { QrCode, X, Search, CheckCircle, ArrowRight, User, BedDouble, Calendar, MapPin, FileDown, Keyboard, Camera } from 'lucide-react'
+import { QrCode, X, Search, CheckCircle, ArrowRight, User, BedDouble, Calendar, MapPin, FileDown, Keyboard, Camera, CreditCard, Car, AlertCircle } from 'lucide-react'
 import { reservasApi } from '../../api/reservas'
+import { pagosApi } from '../../api/pagos'
+import { cocherasApi } from '../../api/cocheras'
 import { useToast } from '../../context/ToastContext'
 import { useConfirm } from '../../hooks/useConfirm'
 import axiosClient from '../../api/axiosClient'
+
+const METODO_LABEL = { yape:'Yape', plin:'Plin', transferencia:'Transferencia', efectivo:'Efectivo', tarjeta:'Tarjeta' }
+const TIPO_PAGO_LABEL = { adelanto:'Adelanto 50%', saldo:'Saldo', total:'Completo' }
+
+function calcPagos(pagos = [], total) {
+  const verif = pagos.filter(p => p.estado === 'verificado')
+  const pend  = pagos.filter(p => p.estado === 'pendiente')
+  const pagado = verif.reduce((s, p) => s + Number(p.monto), 0)
+  const saldo  = Math.max(0, Number(total) - pagado)
+  return { verif, pend, pagado, saldo }
+}
 
 const ESTADO_STYLE = {
   pendiente:  { bg: '#FEF3C7', color: '#92400E', label: 'Pendiente'  },
@@ -33,7 +46,8 @@ const QR_DIV_ID = 'qr-cam-reader'
 function QrCamScanner({ onResult, onError }) {
   const scannerRef = useRef(null)
   const activeRef  = useRef(true)
-  const [ready, setReady] = useState(false)
+  const [ready, setReady]   = useState(false)
+  const [status, setStatus] = useState('Buscando cámara...')
 
   useEffect(() => {
     activeRef.current = true
@@ -41,41 +55,62 @@ function QrCamScanner({ onResult, onError }) {
     import('html5-qrcode').then(({ Html5Qrcode }) => {
       if (!activeRef.current) return
 
-      const scanner = new Html5Qrcode(QR_DIV_ID)
-      scannerRef.current = scanner
+      // Usar getCameras() para obtener el ID real de la cámara — más fiable que facingMode
+      Html5Qrcode.getCameras()
+        .then(cameras => {
+          if (!activeRef.current) return
+          if (!cameras || cameras.length === 0) {
+            onError('No se encontró ninguna cámara en este dispositivo.')
+            return
+          }
 
-      const config = { fps: 12, qrbox: { width: 220, height: 220 }, aspectRatio: 1.0 }
-      const onScan  = (text) => {
-        const code = text.startsWith('BRISAS:') ? text.slice(7) : text.trim().toUpperCase()
-        scanner.stop().catch(() => {})
-        onResult(code)
-      }
+          // Preferir cámara trasera (mobile) o la primera disponible
+          const cam = cameras.find(c =>
+            /back|rear|environment|trasera/i.test(c.label)
+          ) ?? cameras[0]
 
-      // Try rear camera first (mobile), fall back to any available camera
-      scanner.start({ facingMode: 'environment' }, config, onScan, () => {})
-        .then(() => { if (activeRef.current) setReady(true) })
-        .catch(() =>
-          scanner.start({ facingMode: 'user' }, config, onScan, () => {})
+          setStatus('Iniciando ' + (cam.label || 'cámara') + '...')
+
+          const scanner = new Html5Qrcode(QR_DIV_ID)
+          scannerRef.current = scanner
+
+          const config = { fps: 10, qrbox: { width: 220, height: 220 } }
+          const onScan  = (text) => {
+            if (!activeRef.current) return
+            const code = text.startsWith('BRISAS:') ? text.slice(7) : text.trim().toUpperCase()
+            scanner.stop().catch(() => {}).finally(() => { try { scanner.clear() } catch {} })
+            onResult(code)
+          }
+
+          scanner.start(cam.id, config, onScan, () => {})
             .then(() => { if (activeRef.current) setReady(true) })
-            .catch(() => onError('No se pudo acceder a la cámara. Verifique los permisos del navegador.'))
-        )
-    }).catch(() => onError('No se pudo cargar el escáner.'))
+            .catch(err => {
+              if (!activeRef.current) return
+              onError('No se pudo iniciar la cámara. Verifica los permisos del navegador.')
+            })
+        })
+        .catch(() => onError('Sin acceso a las cámaras. Verifica los permisos del navegador.'))
+
+    }).catch(() => onError('No se pudo cargar el módulo de escaneo.'))
 
     return () => {
       activeRef.current = false
-      scannerRef.current?.stop().catch(() => {})
+      const s = scannerRef.current
+      if (s) {
+        s.stop().catch(() => {}).finally(() => { try { s.clear() } catch {} })
+      }
     }
   }, [])
 
   return (
-    <div style={{ borderRadius: 12, overflow: 'hidden', background: '#111', position: 'relative' }}>
+    <div style={{ borderRadius: 12, overflow: 'hidden', background: '#111', position: 'relative', minHeight: 280 }}>
       {!ready && (
-        <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', zIndex: 1, gap: 8 }}>
+        <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', zIndex: 2, gap: 8 }}>
           <div style={{ width: 28, height: 28, border: '3px solid #16A34A', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
-          <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: '0.75rem' }}>Iniciando cámara...</p>
+          <p style={{ color: 'rgba(255,255,255,0.55)', fontSize: '0.72rem', textAlign: 'center', padding: '0 1rem' }}>{status}</p>
         </div>
       )}
-      <div id={QR_DIV_ID} style={{ width: '100%', minHeight: 280 }} />
+      <div id={QR_DIV_ID} style={{ width: '100%' }} />
       {ready && (
         <p style={{ textAlign: 'center', fontSize: '0.72rem', color: 'rgba(255,255,255,0.5)', padding: '0.4rem 0.5rem 0.6rem', background: '#111' }}>
           Apunta al código QR de la reserva del huésped
@@ -85,9 +120,856 @@ function QrCamScanner({ onResult, onError }) {
   )
 }
 
+// ── Modal: nueva reserva presencial / llamada ────────────────
+// Estado de disponibilidad de una habitación según sus fechas ocupadas
+function statusHab(hab) {
+  const hoy = new Date().toISOString().split('T')[0]
+  const fut  = (hab.fechas_ocupadas ?? []).filter(f => f.salida >= hoy)
+  if (!fut.length) return { dot:'#16A34A', label:'Disponible', bg:'#F0FDF4', color:'#166534' }
+
+  const actual = fut.find(f => f.entrada <= hoy)
+  if (actual) return { dot:'#DC2626', label:'Ocupada hoy', bg:'#FEF2F2', color:'#991B1B' }
+
+  const prox  = fut.sort((a,b) => a.entrada.localeCompare(b.entrada))[0]
+  const dStr  = new Date(prox.entrada + 'T12:00:00').toLocaleDateString('es-PE', { day:'2-digit', month:'short' })
+  return { dot:'#D97706', label:`Próx: ${dStr}`, bg:'#FFFBEB', color:'#92400E' }
+}
+
+// ¿El rango entrada-salida choca con alguna fecha ocupada?
+function hayConflicto(fechasOcupadas, entrada, salida) {
+  if (!entrada || !salida || !fechasOcupadas?.length) return false
+  return fechasOcupadas.some(({ entrada: e, salida: s }) =>
+    entrada < s && salida > e
+  )
+}
+
+const TIPO_GRADIENTS_REC = {
+  matrimonial:'linear-gradient(135deg,#7B4019,#3D1A06)',
+  matrimonial_king:'linear-gradient(135deg,#1a1a2e,#16213e)',
+  matrimonial_queen:'linear-gradient(135deg,#0f766e,#134e4a)',
+  matrimonial_adicional:'linear-gradient(135deg,#b45309,#78350f)',
+  doble:'linear-gradient(135deg,#1e40af,#1e3a8a)',
+  triple:'linear-gradient(135deg,#5b21b6,#3b0764)',
+}
+
+function ModalNuevaReserva({ onClose, onCreada }) {
+  const [paso, setPaso]               = useState(1) // 1=cliente 2=habitación 3=detalles 4=pago
+  const [cliente, setCliente]         = useState(null)
+  const [busqCliente, setBusqCliente] = useState('')
+  const [resultados, setResultados]   = useState([])
+  const [buscandoC, setBuscandoC]     = useState(false)
+  const [nuevoCliente, setNuevoCliente]   = useState({ name:'', email:'', telefono:'', dni:'' })
+  const [docNumero, setDocNumero]         = useState('')
+  const [buscandoDoc, setBuscandoDoc]     = useState(false)
+  const [docEncontrado, setDocEncontrado] = useState(null) // nombre hallado
+  const [docError, setDocError]           = useState('')
+  const [modoCliente, setModoCliente] = useState('buscar') // 'buscar' | 'nuevo'
+
+  const [habitaciones, setHabitaciones] = useState([])
+  const [habSede, setHabSede]           = useState('')
+  const [habPiso, setHabPiso]           = useState(null) // null = todos
+  const [sedes, setSedes]               = useState([])
+  const [habSel, setHabSel]             = useState(null)
+  const [loadingHab, setLoadingHab]     = useState(false)
+
+  const [form, setForm] = useState({
+    fecha_entrada: '', fecha_salida: '', num_huespedes: 1,
+    origen: 'presencial', notas: '',
+    descuento: false, descuento_pct: '', descuento_motivo: '',
+    pago_ahora: false, pago_tipo: 'total', pago_metodo: 'efectivo', pago_ref: '',
+  })
+
+  const [saving, setSaving] = useState(false)
+  const [error, setError]   = useState('')
+
+  const today   = new Date().toISOString().split('T')[0]
+  const noches  = form.fecha_entrada && form.fecha_salida
+    ? Math.ceil((new Date(form.fecha_salida) - new Date(form.fecha_entrada)) / 86400000) : 0
+  const precioBase    = habSel ? Number(habSel.precio) * noches : 0
+  const descuentoAmt  = form.descuento && form.descuento_pct
+    ? precioBase * Number(form.descuento_pct) / 100 : 0
+  const precioFinal   = precioBase - descuentoAmt
+  const montoPago     = form.pago_tipo === 'adelanto' ? precioFinal * 0.5 : precioFinal
+
+  const inp = { border:'1.5px solid #E5E7EB', borderRadius:10, padding:'0.6rem 0.85rem', fontSize:'0.875rem', outline:'none', width:'100%', boxSizing:'border-box' }
+  const lbl = { display:'block', fontSize:'0.75rem', fontWeight:600, color:'#374151', marginBottom:'0.3rem' }
+
+  // Buscar clientes
+  useEffect(() => {
+    if (busqCliente.length < 2) { setResultados([]); return }
+    const t = setTimeout(() => {
+      setBuscandoC(true)
+      axiosClient.get('/recepcion/clientes', { params: { search: busqCliente } })
+        .then(r => setResultados(r.data))
+        .catch(() => {})
+        .finally(() => setBuscandoC(false))
+    }, 350)
+    return () => clearTimeout(t)
+  }, [busqCliente])
+
+  // Cargar habitaciones disponibles (resetea piso al cambiar sede)
+  useEffect(() => {
+    if (paso !== 2) return
+    setHabPiso(null)
+    setLoadingHab(true)
+    const params = habSede ? { sede: habSede } : {}
+    axiosClient.get('/habitaciones/disponibles', { params })
+      .then(r => {
+        const sorted = [...r.data].sort((a, b) => a.piso - b.piso || a.numero - b.numero)
+        setHabitaciones(sorted)
+      })
+      .catch(() => {})
+      .finally(() => setLoadingHab(false))
+  }, [paso, habSede])
+
+  useEffect(() => {
+    axiosClient.get('/sedes/publicas').then(r => setSedes(r.data))
+  }, [])
+
+  async function buscarDocumento() {
+    const num = docNumero.replace(/\D/g,'')
+    if (num.length !== 8 && num.length !== 11) return
+    setBuscandoDoc(true); setDocError(''); setDocEncontrado(null)
+    try {
+      const { data } = await axiosClient.get(`/recepcion/documento/${num}`)
+      const nombre = data.nombre ?? `${data.nombres ?? ''} ${data.apellidoPaterno ?? ''} ${data.apellidoMaterno ?? ''}`.trim()
+      setDocEncontrado(nombre)
+      // Pre-cargar todos los campos disponibles desde la API
+      setNuevoCliente(f => ({
+        ...f,
+        name:     nombre || f.name,
+        dni:      num.length === 8 ? num : f.dni,
+        telefono: data.telefono || f.telefono,
+        email:    data.email    || f.email,
+      }))
+      // Verificar si ya existe en el sistema (consulta rápida por DNI)
+      if (num.length === 8) {
+        axiosClient.get('/recepcion/clientes', { params:{ search: num } })
+          .then(r => {
+            const match = r.data.find(c => c.dni === num)
+            if (match) setDocEncontrado(nombre + ' · ya tiene cuenta')
+          }).catch(()=>{})
+      }
+    } catch (e) {
+      setDocError(e.response?.data?.message ?? 'No se encontró el documento.')
+    } finally { setBuscandoDoc(false) }
+  }
+
+  async function crearClienteRapido() {
+    if (!nuevoCliente.name.trim()) return
+    setBuscandoC(true); setError('')
+    try {
+      const res = await axiosClient.post('/recepcion/clientes', nuevoCliente)
+      // 200 = cliente existente reutilizado, 201 = nuevo creado
+      setCliente(res.data)
+      setPaso(2)
+    } catch (e) {
+      const msg = e.response?.data?.message ?? e.response?.data?.errors?.email?.[0] ?? 'Error al registrar cliente.'
+      setError(msg)
+    } finally { setBuscandoC(false) }
+  }
+
+  async function confirmar() {
+    if (!habSel || noches < 1) return
+    setSaving(true); setError('')
+    try {
+      const payload = {
+        habitacion_id: habSel.id,
+        user_id:       cliente?.id,
+        fecha_entrada: form.fecha_entrada,
+        fecha_salida:  form.fecha_salida,
+        num_huespedes: form.num_huespedes,
+        origen:        form.origen,
+        notas:         form.notas || undefined,
+        descuento_porcentaje: form.descuento && form.descuento_pct ? form.descuento_pct : undefined,
+        descuento_motivo:     form.descuento && form.descuento_motivo ? form.descuento_motivo : undefined,
+        pago_metodo:   form.pago_ahora ? form.pago_metodo : undefined,
+        pago_tipo:     form.pago_ahora ? form.pago_tipo   : undefined,
+        pago_referencia: form.pago_ref || undefined,
+      }
+      await reservasApi.create(payload)
+      onCreada()
+    } catch (e) {
+      setError(e.response?.data?.message ?? 'Error al crear la reserva.')
+    } finally { setSaving(false) }
+  }
+
+  const StepDot = ({ n }) => (
+    <div style={{ display:'flex', alignItems:'center', gap:4 }}>
+      <div style={{ width:26, height:26, borderRadius:'50%', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'0.72rem', fontWeight:700, background: paso >= n ? '#3D1A06' : '#E5E7EB', color: paso >= n ? 'white' : '#9CA3AF' }}>{paso > n ? '✓' : n}</div>
+      {n < 4 && <div style={{ width:30, height:2, background: paso > n ? '#3D1A06' : '#E5E7EB', borderRadius:9999 }}/>}
+    </div>
+  )
+
+  return (
+    <div onClick={e => e.target === e.currentTarget && onClose()}
+      style={{ position:'fixed', inset:0, zIndex:60, background:'rgba(0,0,0,0.55)', backdropFilter:'blur(4px)', display:'flex', alignItems:'center', justifyContent:'center', padding:'1rem' }}>
+      <div style={{ background:'white', borderRadius:20, width:'100%', maxWidth:600, maxHeight:'94vh', overflowY:'auto', boxShadow:'0 24px 60px rgba(0,0,0,0.22)', display:'flex', flexDirection:'column' }}>
+
+        {/* Header */}
+        <div style={{ position:'sticky', top:0, background:'white', zIndex:1, borderBottom:'1px solid #F3F4F6', padding:'1rem 1.5rem', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+          <div>
+            <p style={{ fontWeight:800, fontSize:'0.98rem', color:'#111827', margin:0 }}>Nueva reserva presencial</p>
+            <p style={{ fontSize:'0.72rem', color:'#9CA3AF', margin:0 }}>Registro por recepción</p>
+          </div>
+          <div style={{ display:'flex', alignItems:'center', gap:4 }}>
+            {[1,2,3,4].map(n => <StepDot key={n} n={n}/>)}
+            <button onClick={onClose} style={{ marginLeft:8, background:'none', border:'none', cursor:'pointer', color:'#9CA3AF' }}><X size={18}/></button>
+          </div>
+        </div>
+
+        <div style={{ padding:'1.25rem 1.5rem', display:'flex', flexDirection:'column', gap:'1rem' }}>
+
+          {/* ── PASO 1: CLIENTE ── */}
+          {paso === 1 && (
+            <div>
+              <p style={{ fontWeight:700, fontSize:'0.9rem', color:'#111827', margin:'0 0 0.85rem' }}>¿Quién hace la reserva?</p>
+              <div style={{ display:'flex', gap:'0.5rem', marginBottom:'1rem' }}>
+                {['buscar','nuevo'].map(m => (
+                  <button key={m} onClick={() => setModoCliente(m)}
+                    style={{ padding:'6px 16px', borderRadius:9999, border:'1.5px solid', fontSize:'0.78rem', fontWeight:600, cursor:'pointer', borderColor:modoCliente===m?'#3D1A06':'#E5E7EB', background:modoCliente===m?'#3D1A06':'white', color:modoCliente===m?'white':'#6B7280' }}>
+                    {m==='buscar'?'🔍 Buscar cliente':'➕ Registrar nuevo'}
+                  </button>
+                ))}
+              </div>
+
+              {modoCliente === 'buscar' ? (
+                <>
+                  <input style={inp} placeholder="Nombre, email, DNI o teléfono..." value={busqCliente}
+                    onChange={e => setBusqCliente(e.target.value)}/>
+                  {buscandoC && <p style={{ fontSize:'0.78rem', color:'#9CA3AF', margin:'4px 0' }}>Buscando...</p>}
+                  {resultados.length > 0 && (
+                    <div style={{ border:'1px solid #E5E7EB', borderRadius:10, marginTop:8, overflow:'hidden' }}>
+                      {resultados.map(c => (
+                        <div key={c.id} onClick={() => { setCliente(c); setPaso(2) }}
+                          style={{ padding:'0.7rem 1rem', cursor:'pointer', borderBottom:'1px solid #F3F4F6', display:'flex', justifyContent:'space-between', alignItems:'center' }}
+                          onMouseEnter={e => e.currentTarget.style.background='#FDF6ED'}
+                          onMouseLeave={e => e.currentTarget.style.background='white'}>
+                          <div>
+                            <p style={{ fontWeight:600, color:'#111827', fontSize:'0.85rem', margin:0 }}>{c.name}</p>
+                            <p style={{ fontSize:'0.72rem', color:'#9CA3AF', margin:0 }}>{c.email} {c.dni&&`· DNI ${c.dni}`} {c.telefono&&`· ${c.telefono}`}</p>
+                          </div>
+                          <span style={{ fontSize:'0.75rem', color:'#F5922E', fontWeight:600 }}>Seleccionar →</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {busqCliente.length >= 2 && !buscandoC && resultados.length === 0 && (
+                    <p style={{ fontSize:'0.78rem', color:'#9CA3AF', marginTop:6 }}>No se encontró ningún cliente. Prueba con "Registrar nuevo".</p>
+                  )}
+                  <button onClick={() => { setCliente(null); setPaso(2) }}
+                    style={{ marginTop:'0.75rem', width:'100%', padding:'0.65rem', borderRadius:10, border:'1.5px solid #E5E7EB', background:'white', color:'#6B7280', fontSize:'0.82rem', fontWeight:600, cursor:'pointer' }}>
+                    Continuar sin asociar cliente →
+                  </button>
+                </>
+              ) : (
+                <div style={{ display:'flex', flexDirection:'column', gap:'0.75rem' }}>
+
+                  {/* Búsqueda por DNI / RUC */}
+                  <div style={{ background:'#F0FDF4', border:'1px solid #BBF7D0', borderRadius:12, padding:'0.85rem 1rem' }}>
+                    <label style={{ ...lbl, color:'#166534', marginBottom:'0.5rem' }}>
+                      🔍 Buscar por DNI o RUC (autocompletar nombre)
+                    </label>
+                    <div style={{ display:'flex', gap:'0.5rem' }}>
+                      <input
+                        style={{ ...inp, flex:1, fontFamily:'monospace', letterSpacing:'0.08em' }}
+                        placeholder="8 dígitos (DNI) o 11 dígitos (RUC)"
+                        value={docNumero}
+                        onChange={e => { setDocNumero(e.target.value.replace(/\D/g,'')); setDocEncontrado(null); setDocError('') }}
+                        onKeyDown={e => e.key === 'Enter' && buscarDocumento()}
+                        maxLength={11}
+                      />
+                      <button
+                        onClick={buscarDocumento}
+                        disabled={buscandoDoc || (docNumero.length !== 8 && docNumero.length !== 11)}
+                        style={{ padding:'0.6rem 1rem', borderRadius:10, border:'none', background:docNumero.length===8||docNumero.length===11?'#16A34A':'#9CA3AF', color:'white', fontWeight:700, fontSize:'0.82rem', cursor:'pointer', whiteSpace:'nowrap', opacity:buscandoDoc?0.7:1 }}>
+                        {buscandoDoc ? '...' : 'Consultar'}
+                      </button>
+                    </div>
+                    {docEncontrado && (
+                      <div style={{ marginTop:6, display:'flex', alignItems:'center', gap:6, fontSize:'0.78rem', color:'#166534', fontWeight:600 }}>
+                        <span>✅</span> <span>Encontrado: <b>{docEncontrado}</b> — datos precargados</span>
+                      </div>
+                    )}
+                    {docError && (
+                      <p style={{ margin:'4px 0 0', fontSize:'0.75rem', color:'#DC2626' }}>{docError}</p>
+                    )}
+                    <p style={{ margin:'4px 0 0', fontSize:'0.68rem', color:'#9CA3AF' }}>
+                      Fuente: RENIEC / SUNAT via apis.net.pe
+                    </p>
+                  </div>
+
+                  {/* Separador */}
+                  <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                    <div style={{ flex:1, height:1, background:'#E5E7EB' }}/>
+                    <span style={{ fontSize:'0.72rem', color:'#9CA3AF' }}>o ingresa manualmente</span>
+                    <div style={{ flex:1, height:1, background:'#E5E7EB' }}/>
+                  </div>
+
+                  <div>
+                    <label style={lbl}>Nombre completo *</label>
+                    <input style={inp} placeholder="Ej: Juan Pérez" value={nuevoCliente.name}
+                      onChange={e => setNuevoCliente(f => ({...f, name:e.target.value}))}/>
+                  </div>
+                  <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'0.65rem' }}>
+                    <div>
+                      <label style={lbl}>Teléfono</label>
+                      <input style={inp} placeholder="999888777" value={nuevoCliente.telefono}
+                        onChange={e => setNuevoCliente(f => ({...f, telefono:e.target.value}))}/>
+                    </div>
+                    <div>
+                      <label style={lbl}>DNI</label>
+                      <input style={inp} placeholder="12345678" value={nuevoCliente.dni}
+                        onChange={e => setNuevoCliente(f => ({...f, dni:e.target.value}))}/>
+                    </div>
+                  </div>
+                  <div>
+                    <label style={lbl}>Email (opcional)</label>
+                    <input style={inp} placeholder="correo@ejemplo.com" value={nuevoCliente.email}
+                      onChange={e => setNuevoCliente(f => ({...f, email:e.target.value}))}/>
+                  </div>
+                  {error && <p style={{ color:'#DC2626', fontSize:'0.78rem' }}>{error}</p>}
+                  <button onClick={crearClienteRapido} disabled={!nuevoCliente.name.trim() || buscandoC}
+                    style={{ padding:'0.75rem', borderRadius:10, border:'none', background:'#3D1A06', color:'white', fontWeight:700, cursor:'pointer', opacity:!nuevoCliente.name.trim()?0.5:1 }}>
+                    {buscandoC ? 'Registrando...' : 'Registrar y continuar →'}
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ── PASO 2: HABITACIÓN ── */}
+          {paso === 2 && (() => {
+            const pisos        = [...new Set(habitaciones.map(h => h.piso))].sort((a,b) => a - b)
+            const habFiltradas = habPiso !== null ? habitaciones.filter(h => h.piso === habPiso) : habitaciones
+            const grupos       = pisos
+              .filter(p => habPiso === null || p === habPiso)
+              .map(p => ({ piso: p, habs: habFiltradas.filter(h => h.piso === p) }))
+              .filter(g => g.habs.length > 0)
+
+            return (
+              <div>
+                {cliente && (
+                  <div style={{ background:'#F0FDF4', border:'1px solid #BBF7D0', borderRadius:10, padding:'0.6rem 1rem', marginBottom:'0.85rem', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                    <span style={{ fontSize:'0.82rem', fontWeight:600, color:'#166534' }}>👤 {cliente.name}</span>
+                    <button onClick={() => setPaso(1)} style={{ background:'none', border:'none', color:'#9CA3AF', fontSize:'0.72rem', cursor:'pointer' }}>Cambiar</button>
+                  </div>
+                )}
+
+                <p style={{ fontWeight:700, fontSize:'0.9rem', color:'#111827', margin:'0 0 0.65rem' }}>Selecciona la habitación</p>
+
+                {/* Chips sede */}
+                <div style={{ display:'flex', gap:'0.4rem', marginBottom:'0.5rem', flexWrap:'wrap', alignItems:'center' }}>
+                  <span style={{ fontSize:'0.68rem', fontWeight:700, color:'#9CA3AF', textTransform:'uppercase', letterSpacing:'0.05em', marginRight:2 }}>Sede</span>
+                  <button onClick={() => setHabSede('')}
+                    style={{ padding:'4px 12px', borderRadius:9999, border:'1.5px solid', fontSize:'0.75rem', fontWeight:600, cursor:'pointer', borderColor:!habSede?'#F5922E':'#E5E7EB', background:!habSede?'#FFF7ED':'white', color:!habSede?'#F5922E':'#6B7280' }}>
+                    Todas
+                  </button>
+                  {sedes.map(s => (
+                    <button key={s.id} onClick={() => setHabSede(s.slug)}
+                      style={{ padding:'4px 12px', borderRadius:9999, border:'1.5px solid', fontSize:'0.75rem', fontWeight:600, cursor:'pointer', borderColor:habSede===s.slug?'#F5922E':'#E5E7EB', background:habSede===s.slug?'#FFF7ED':'white', color:habSede===s.slug?'#F5922E':'#6B7280' }}>
+                      {s.nombre}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Chips piso — solo si hay más de 1 piso */}
+                {!loadingHab && pisos.length > 1 && (
+                  <div style={{ display:'flex', gap:'0.4rem', marginBottom:'0.75rem', flexWrap:'wrap', alignItems:'center' }}>
+                    <span style={{ fontSize:'0.68rem', fontWeight:700, color:'#9CA3AF', textTransform:'uppercase', letterSpacing:'0.05em', marginRight:2 }}>Piso</span>
+                    <button onClick={() => setHabPiso(null)}
+                      style={{ padding:'4px 12px', borderRadius:9999, border:'1.5px solid', fontSize:'0.75rem', fontWeight:600, cursor:'pointer', borderColor:habPiso===null?'#3D1A06':'#E5E7EB', background:habPiso===null?'#3D1A06':'white', color:habPiso===null?'white':'#6B7280' }}>
+                      Todos
+                    </button>
+                    {pisos.map(p => (
+                      <button key={p} onClick={() => setHabPiso(habPiso===p ? null : p)}
+                        style={{ padding:'4px 12px', borderRadius:9999, border:'1.5px solid', fontSize:'0.75rem', fontWeight:600, cursor:'pointer', borderColor:habPiso===p?'#3D1A06':'#E5E7EB', background:habPiso===p?'#3D1A06':'white', color:habPiso===p?'white':'#6B7280', minWidth:64 }}>
+                        🏢 Piso {p}
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {loadingHab ? (
+                  <p style={{ color:'#9CA3AF', textAlign:'center', padding:'2rem' }}>Cargando habitaciones...</p>
+                ) : habFiltradas.length === 0 ? (
+                  <p style={{ color:'#9CA3AF', textAlign:'center', padding:'2rem' }}>No hay habitaciones disponibles.</p>
+                ) : (
+                  <div>
+                    {grupos.map(({ piso, habs }) => (
+                      <div key={piso} style={{ marginBottom:'1.25rem' }}>
+                        {/* Separador de piso cuando hay más de 1 */}
+                        {pisos.length > 1 && (
+                          <div style={{ display:'flex', alignItems:'center', gap:'0.6rem', marginBottom:'0.6rem' }}>
+                            <div style={{ background:'#3D1A06', color:'white', fontSize:'0.68rem', fontWeight:800, padding:'3px 12px', borderRadius:9999, flexShrink:0 }}>
+                              Piso {piso}
+                            </div>
+                            <div style={{ flex:1, height:1, background:'#F3F4F6' }}/>
+                            <span style={{ fontSize:'0.68rem', color:'#9CA3AF', flexShrink:0 }}>
+                              {habs.length} hab{habs.length!==1?'s':''}
+                            </span>
+                          </div>
+                        )}
+                        <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(150px, 1fr))', gap:'0.6rem' }}>
+                          {habs.map(h => {
+                              const st = statusHab(h)
+                              return (
+                                <div key={h.id} onClick={() => { setHabSel(h); setPaso(3) }}
+                                  style={{ border:`2px solid ${st.dot==='#DC2626'?'#FCA5A5':'#E5E7EB'}`, borderRadius:14, overflow:'hidden', cursor:'pointer', transition:'all 0.15s', opacity: st.dot==='#DC2626' ? 0.75 : 1 }}
+                                  onMouseEnter={e => { if(st.dot!=='#DC2626'){ e.currentTarget.style.borderColor='#F5922E'; e.currentTarget.style.transform='translateY(-2px)' } }}
+                                  onMouseLeave={e => { e.currentTarget.style.borderColor=st.dot==='#DC2626'?'#FCA5A5':'#E5E7EB'; e.currentTarget.style.transform='none' }}>
+                                  <div style={{ height:72, background:TIPO_GRADIENTS_REC[h.tipo]??TIPO_GRADIENTS_REC.matrimonial, position:'relative' }}>
+                                    <span style={{ position:'absolute', top:6, right:6, background:st.bg, color:st.color, fontSize:'0.6rem', fontWeight:700, padding:'2px 7px', borderRadius:9999, border:`1px solid ${st.dot}33` }}>
+                                      <span style={{ display:'inline-block', width:6, height:6, borderRadius:'50%', background:st.dot, marginRight:3, verticalAlign:'middle' }}/>
+                                      {st.label}
+                                    </span>
+                                  </div>
+                                  <div style={{ padding:'0.55rem 0.7rem' }}>
+                                    <p style={{ fontWeight:700, fontSize:'0.82rem', color:'#111827', margin:0 }}>N° {h.numero}</p>
+                                    <p style={{ fontSize:'0.68rem', color:'#9CA3AF', margin:'1px 0' }}>{h.tipo_label} · Piso {h.piso}</p>
+                                    <p style={{ fontWeight:800, color:'#F5922E', fontSize:'0.8rem', margin:0 }}>S/ {h.precio}/n.</p>
+                                  </div>
+                                </div>
+                              )
+                          })}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )
+          })()}
+
+          {/* ── PASO 3: DETALLES + DESCUENTO ── */}
+          {paso === 3 && habSel && (
+            <div style={{ display:'flex', flexDirection:'column', gap:'0.9rem' }}>
+              {/* Mini card habitación */}
+              <div style={{ display:'flex', alignItems:'center', gap:10, padding:'0.7rem 0.9rem', background:'#FFF7ED', border:'2px solid #F5922E', borderRadius:12 }}>
+                <div style={{ width:36, height:36, borderRadius:8, background:TIPO_GRADIENTS_REC[habSel.tipo]??TIPO_GRADIENTS_REC.matrimonial, flexShrink:0 }}/>
+                <div style={{ flex:1 }}>
+                  <p style={{ fontWeight:700, color:'#111827', margin:0, fontSize:'0.88rem' }}>Hab. N° {habSel.numero} — {habSel.tipo_label}</p>
+                  <p style={{ fontSize:'0.72rem', color:'#9CA3AF', margin:0 }}>{habSel.sede_nombre} · Piso {habSel.piso}</p>
+                </div>
+                <button onClick={() => { setHabSel(null); setPaso(2) }} style={{ background:'none', border:'none', color:'#9CA3AF', fontSize:'0.72rem', cursor:'pointer' }}>Cambiar</button>
+              </div>
+
+              {/* Fechas */}
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'0.65rem' }}>
+                <div>
+                  <label style={lbl}>Entrada *</label>
+                  <input type="date" min={today} style={inp} value={form.fecha_entrada}
+                    onChange={e => setForm(f => ({...f, fecha_entrada:e.target.value, fecha_salida:''}))}/>
+                </div>
+                <div>
+                  <label style={lbl}>Salida *</label>
+                  <input type="date" min={form.fecha_entrada||today} style={{...inp, opacity:form.fecha_entrada?1:0.5}} disabled={!form.fecha_entrada}
+                    value={form.fecha_salida} onChange={e => setForm(f => ({...f, fecha_salida:e.target.value}))}/>
+                </div>
+              </div>
+
+              {/* Alerta de conflicto de fechas */}
+              {form.fecha_entrada && form.fecha_salida && hayConflicto(habSel.fechas_ocupadas, form.fecha_entrada, form.fecha_salida) && (
+                <div style={{ background:'#FEF2F2', border:'1px solid #FCA5A5', borderRadius:10, padding:'0.7rem 1rem', display:'flex', alignItems:'flex-start', gap:8 }}>
+                  <AlertCircle size={16} style={{ color:'#DC2626', flexShrink:0, marginTop:1 }}/>
+                  <div>
+                    <p style={{ fontWeight:700, color:'#DC2626', fontSize:'0.82rem', margin:0 }}>Conflicto de fechas detectado</p>
+                    <p style={{ color:'#9CA3AF', fontSize:'0.72rem', margin:'2px 0 0' }}>
+                      Esta habitación tiene una reserva que se cruza con las fechas seleccionadas.
+                      Al confirmar, el sistema bloqueará si hay solapamiento real.
+                      Considera elegir otra habitación.
+                    </p>
+                    <button onClick={() => { setHabSel(null); setPaso(2) }}
+                      style={{ marginTop:6, fontSize:'0.75rem', fontWeight:700, color:'#DC2626', background:'none', border:'none', cursor:'pointer', padding:0, textDecoration:'underline' }}>
+                      ← Elegir otra habitación
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Huéspedes + Origen */}
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'0.65rem' }}>
+                <div>
+                  <label style={lbl}>N° huéspedes</label>
+                  <input type="number" min={1} max={habSel.capacidad} style={inp} value={form.num_huespedes}
+                    onChange={e => setForm(f => ({...f, num_huespedes:+e.target.value}))}/>
+                </div>
+                <div>
+                  <label style={lbl}>Origen de la reserva</label>
+                  <div style={{ display:'flex', gap:'0.4rem', paddingTop:4 }}>
+                    {[{v:'presencial',label:'🏨 Presencial'},{v:'llamada',label:'📞 Llamada'}].map(o => (
+                      <button key={o.v} onClick={() => setForm(f => ({...f, origen:o.v}))}
+                        style={{ flex:1, padding:'0.55rem', borderRadius:8, border:`1.5px solid ${form.origen===o.v?'#3D1A06':'#E5E7EB'}`, background:form.origen===o.v?'#3D1A06':'white', color:form.origen===o.v?'white':'#6B7280', fontSize:'0.75rem', fontWeight:600, cursor:'pointer' }}>
+                        {o.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Notas */}
+              <div>
+                <label style={lbl}>Notas internas</label>
+                <textarea style={{...inp, minHeight:60, resize:'vertical'}} placeholder="Solicitudes especiales, observaciones..."
+                  value={form.notas} onChange={e => setForm(f => ({...f, notas:e.target.value}))}/>
+              </div>
+
+              {/* Descuento */}
+              <div style={{ border:'1.5px solid #E5E7EB', borderRadius:12, padding:'0.85rem 1rem' }}>
+                <label style={{ display:'flex', alignItems:'center', gap:8, cursor:'pointer', marginBottom: form.descuento ? '0.75rem' : 0 }}>
+                  <input type="checkbox" checked={form.descuento} onChange={e => setForm(f => ({...f, descuento:e.target.checked}))}/>
+                  <span style={{ fontWeight:600, fontSize:'0.85rem', color:'#374151' }}>🏷️ Aplicar descuento autorizado</span>
+                </label>
+                {form.descuento && (
+                  <div style={{ display:'flex', flexDirection:'column', gap:'0.6rem' }}>
+                    <div style={{ display:'grid', gridTemplateColumns:'120px 1fr', gap:'0.65rem' }}>
+                      <div>
+                        <label style={lbl}>Porcentaje %</label>
+                        <input type="number" min={1} max={100} style={inp} placeholder="Ej: 10"
+                          value={form.descuento_pct} onChange={e => setForm(f => ({...f, descuento_pct:e.target.value}))}/>
+                      </div>
+                      <div>
+                        <label style={lbl}>Motivo / autorización</label>
+                        <input style={inp} placeholder="Ej: Cliente frecuente, promoción..."
+                          value={form.descuento_motivo} onChange={e => setForm(f => ({...f, descuento_motivo:e.target.value}))}/>
+                      </div>
+                    </div>
+                    {noches > 0 && form.descuento_pct && (
+                      <div style={{ background:'#FEF9C3', border:'1px solid #FDE68A', borderRadius:8, padding:'0.6rem 0.85rem', fontSize:'0.8rem' }}>
+                        <div style={{ display:'flex', justifyContent:'space-between', color:'#6B7280' }}>
+                          <span>Precio original:</span><span>S/ {precioBase.toFixed(2)}</span>
+                        </div>
+                        <div style={{ display:'flex', justifyContent:'space-between', color:'#DC2626' }}>
+                          <span>Descuento {form.descuento_pct}%:</span><span>-S/ {descuentoAmt.toFixed(2)}</span>
+                        </div>
+                        <div style={{ display:'flex', justifyContent:'space-between', fontWeight:800, color:'#16A34A', borderTop:'1px solid #FDE68A', paddingTop:4, marginTop:4 }}>
+                          <span>Total con descuento:</span><span>S/ {precioFinal.toFixed(2)}</span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Resumen sin descuento */}
+              {noches > 0 && !form.descuento && (
+                <div style={{ background:'#FFF7ED', border:'1px solid rgba(245,146,46,0.3)', borderRadius:10, padding:'0.75rem 1rem' }}>
+                  <div style={{ display:'flex', justifyContent:'space-between', fontSize:'0.82rem', color:'#6B7280', marginBottom:3 }}>
+                    <span>S/ {habSel.precio} × {noches} noche{noches!==1?'s':''}</span>
+                    <span>S/ {precioBase.toFixed(2)}</span>
+                  </div>
+                  <div style={{ display:'flex', justifyContent:'space-between', fontWeight:800, fontSize:'1rem', color:'#3D1A06', borderTop:'1px solid rgba(245,146,46,0.2)', paddingTop:4 }}>
+                    <span>Total</span><span style={{ color:'#F5922E' }}>S/ {precioFinal.toFixed(2)}</span>
+                  </div>
+                </div>
+              )}
+
+              {(() => {
+                const conflicto  = hayConflicto(habSel.fechas_ocupadas, form.fecha_entrada, form.fecha_salida)
+                const bloqueado  = noches < 1 || conflicto
+                const btnLabel   = noches < 1
+                  ? 'Selecciona las fechas'
+                  : conflicto
+                    ? '⛔ Fechas ocupadas — cambia la habitación'
+                    : 'Continuar → Pago'
+                return (
+                  <button
+                    onClick={() => { if (!bloqueado) setPaso(4) }}
+                    disabled={bloqueado}
+                    style={{ padding:'0.85rem', borderRadius:12, border:'none', background:bloqueado?'#E5E7EB':'linear-gradient(135deg,#3D1A06,#7B4019)', color:bloqueado?'#9CA3AF':'white', fontWeight:700, fontSize:'0.9rem', cursor:bloqueado?'not-allowed':'pointer' }}>
+                    {btnLabel}
+                  </button>
+                )
+              })()}
+            </div>
+          )}
+
+          {/* ── PASO 4: PAGO ── */}
+          {paso === 4 && (
+            <div style={{ display:'flex', flexDirection:'column', gap:'0.9rem' }}>
+              {/* Resumen rápido */}
+              <div style={{ background:'#F9FAFB', borderRadius:12, padding:'0.75rem 1rem', fontSize:'0.82rem' }}>
+                <div style={{ display:'flex', justifyContent:'space-between', marginBottom:3 }}>
+                  <span style={{ color:'#6B7280' }}>Habitación</span>
+                  <span style={{ fontWeight:600 }}>N° {habSel.numero} — {habSel.tipo_label}</span>
+                </div>
+                <div style={{ display:'flex', justifyContent:'space-between', marginBottom:3 }}>
+                  <span style={{ color:'#6B7280' }}>Fechas</span>
+                  <span style={{ fontWeight:600 }}>{form.fecha_entrada} → {form.fecha_salida} ({noches}n)</span>
+                </div>
+                <div style={{ display:'flex', justifyContent:'space-between' }}>
+                  <span style={{ color:'#6B7280' }}>Total</span>
+                  <span style={{ fontWeight:800, color:'#F5922E', fontSize:'0.95rem' }}>S/ {precioFinal.toFixed(2)}</span>
+                </div>
+              </div>
+
+              {/* Toggle pago ahora */}
+              <label style={{ display:'flex', alignItems:'center', gap:8, cursor:'pointer', padding:'0.75rem 1rem', border:'1.5px solid #E5E7EB', borderRadius:12 }}>
+                <input type="checkbox" checked={form.pago_ahora} onChange={e => setForm(f => ({...f, pago_ahora:e.target.checked}))}/>
+                <div>
+                  <p style={{ fontWeight:700, fontSize:'0.88rem', color:'#111827', margin:0 }}>💳 Registrar pago ahora</p>
+                  <p style={{ fontSize:'0.72rem', color:'#9CA3AF', margin:0 }}>El cliente paga en este momento (se verifica automáticamente)</p>
+                </div>
+              </label>
+
+              {form.pago_ahora && (
+                <div style={{ display:'flex', flexDirection:'column', gap:'0.7rem', padding:'0.85rem 1rem', border:'1px solid #E5E7EB', borderRadius:12 }}>
+                  {/* Tipo */}
+                  <div>
+                    <label style={lbl}>Tipo de pago</label>
+                    <div style={{ display:'flex', gap:'0.5rem' }}>
+                      {[{v:'adelanto',label:`Adelanto 50% — S/ ${(precioFinal*0.5).toFixed(2)}`},{v:'total',label:`Completo — S/ ${precioFinal.toFixed(2)}`}].map(t => (
+                        <button key={t.v} onClick={() => setForm(f => ({...f, pago_tipo:t.v}))}
+                          style={{ flex:1, padding:'0.6rem 0.4rem', borderRadius:8, border:`1.5px solid ${form.pago_tipo===t.v?'#F5922E':'#E5E7EB'}`, background:form.pago_tipo===t.v?'#FFF7ED':'white', color:form.pago_tipo===t.v?'#F5922E':'#6B7280', fontSize:'0.73rem', fontWeight:form.pago_tipo===t.v?700:400, cursor:'pointer' }}>
+                          {t.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  {/* Método */}
+                  <div>
+                    <label style={lbl}>Método de pago</label>
+                    <div style={{ display:'flex', gap:'0.4rem', flexWrap:'wrap' }}>
+                      {['efectivo','yape','plin','transferencia','tarjeta'].map(m => (
+                        <button key={m} onClick={() => setForm(f => ({...f, pago_metodo:m}))}
+                          style={{ padding:'5px 12px', borderRadius:8, border:`1.5px solid ${form.pago_metodo===m?'#3D1A06':'#E5E7EB'}`, background:form.pago_metodo===m?'#3D1A06':'white', color:form.pago_metodo===m?'white':'#6B7280', fontSize:'0.75rem', fontWeight:600, cursor:'pointer', textTransform:'capitalize' }}>
+                          {m}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  {/* Ref */}
+                  <div>
+                    <label style={lbl}>N° operación / referencia <span style={{ fontWeight:400, color:'#9CA3AF' }}>(opcional)</span></label>
+                    <input style={inp} placeholder="Ej: 12345678" value={form.pago_ref}
+                      onChange={e => setForm(f => ({...f, pago_ref:e.target.value}))}/>
+                  </div>
+                  <div style={{ background:'#F0FDF4', border:'1px solid #BBF7D0', borderRadius:8, padding:'0.6rem 0.85rem', fontSize:'0.78rem', color:'#166534', fontWeight:600 }}>
+                    ✅ Monto a cobrar: <span style={{ fontSize:'1rem' }}>S/ {montoPago.toFixed(2)}</span>
+                  </div>
+                </div>
+              )}
+
+              {!form.pago_ahora && (
+                <div style={{ background:'#FFFBEB', border:'1px solid #FDE68A', borderRadius:10, padding:'0.65rem 1rem', fontSize:'0.78rem', color:'#92400E' }}>
+                  ⏳ La reserva quedará en estado <b>Pendiente</b>. El cliente deberá pagar luego.
+                </div>
+              )}
+
+              {error && <div style={{ background:'#FEF2F2', border:'1px solid #FCA5A5', color:'#DC2626', borderRadius:10, padding:'0.7rem', fontSize:'0.82rem' }}>{error}</div>}
+
+              <div style={{ display:'flex', gap:'0.5rem' }}>
+                <button onClick={() => setPaso(3)} style={{ padding:'0.75rem 1.25rem', borderRadius:10, border:'1.5px solid #E5E7EB', background:'white', color:'#6B7280', fontWeight:600, fontSize:'0.85rem', cursor:'pointer' }}>
+                  ← Volver
+                </button>
+                <button onClick={confirmar} disabled={saving}
+                  style={{ flex:1, padding:'0.85rem', borderRadius:12, border:'none', background:saving?'#9CA3AF':'linear-gradient(135deg,#16A34A,#15803D)', color:'white', fontWeight:700, fontSize:'0.9rem', cursor:saving?'not-allowed':'pointer' }}>
+                  {saving ? 'Creando reserva...' : '✓ Confirmar reserva'}
+                </button>
+              </div>
+            </div>
+          )}
+
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── Modal detalle antes del check-in (desde la tabla) ────────
+function ModalDetalleCheckin({ reserva, onClose, onCheckin }) {
+  const [cochera, setCochera] = useState(null)
+  const [saldoModo, setSaldoModo] = useState(false)
+  const [metodoSaldo, setMetodoSaldo] = useState('efectivo')
+  const [guardando, setGuardando] = useState(false)
+  const [error, setError] = useState('')
+
+  const { verif, pend, pagado, saldo } = calcPagos(reserva.pagos ?? [], reserva.precio_total)
+  const noches = Math.ceil(
+    (new Date((reserva.fecha_salida || '').split('T')[0] + 'T12:00:00') -
+     new Date((reserva.fecha_entrada || '').split('T')[0] + 'T12:00:00')) / 86400000
+  )
+
+  useEffect(() => {
+    cocherasApi.getReservas({ reserva_id: reserva.id })
+      .then(r => {
+        const items = r.data.data ?? r.data
+        const c = items.find(x => !['cancelada','finalizada'].includes(x.estado))
+        setCochera(c ?? null)
+      }).catch(() => {})
+  }, [reserva.id])
+
+  async function registrarSaldoYCheckin() {
+    setGuardando(true); setError('')
+    try {
+      await pagosApi.registrarSaldo(reserva.id, { metodo_pago: metodoSaldo })
+      onCheckin(reserva.id)
+    } catch (e) {
+      setError(e.response?.data?.message ?? 'Error al registrar el saldo.')
+      setGuardando(false)
+    }
+  }
+
+  const METODOS_S = [
+    { id:'efectivo', label:'Efectivo' }, { id:'yape', label:'Yape' },
+    { id:'plin', label:'Plin' }, { id:'transferencia', label:'Transferencia' },
+    { id:'tarjeta', label:'Tarjeta' },
+  ]
+
+  return (
+    <div onClick={e => e.target === e.currentTarget && onClose()}
+      style={{ position:'fixed', inset:0, zIndex:60, background:'rgba(0,0,0,0.55)', backdropFilter:'blur(4px)', display:'flex', alignItems:'center', justifyContent:'center', padding:'1rem' }}>
+      <div style={{ background:'white', borderRadius:20, width:'100%', maxWidth:480, maxHeight:'92vh', overflowY:'auto', boxShadow:'0 24px 60px rgba(0,0,0,0.22)' }}>
+
+        {/* Header */}
+        <div style={{ position:'sticky', top:0, background:'white', zIndex:1, borderBottom:'1px solid #F3F4F6', padding:'1rem 1.5rem', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+          <div>
+            <p style={{ fontWeight:800, fontSize:'0.95rem', color:'#111827', margin:0 }}>Detalle de check-in</p>
+            <p style={{ fontSize:'0.72rem', color:'#9CA3AF', margin:0 }}>{reserva.codigo}</p>
+          </div>
+          <button onClick={onClose} style={{ background:'none', border:'none', cursor:'pointer', color:'#9CA3AF' }}><X size={18}/></button>
+        </div>
+
+        <div style={{ padding:'1.1rem 1.5rem', display:'flex', flexDirection:'column', gap:'0.85rem' }}>
+
+          {/* Info cliente + reserva */}
+          <div style={{ background:'#F9FAFB', borderRadius:12, padding:'0.85rem 1rem' }}>
+            <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:'0.5rem' }}>
+              <User size={14} style={{ color:'#9CA3AF' }}/>
+              <span style={{ fontWeight:700, color:'#111827', fontSize:'0.88rem' }}>{reserva.cliente?.name}</span>
+              {reserva.cliente?.telefono && <span style={{ fontSize:'0.72rem', color:'#9CA3AF' }}>· {reserva.cliente.telefono}</span>}
+              {reserva.cliente?.dni && <span style={{ fontSize:'0.72rem', color:'#9CA3AF' }}>· DNI {reserva.cliente.dni}</span>}
+            </div>
+            <div style={{ display:'flex', gap:'1.5rem', fontSize:'0.82rem', color:'#374151', flexWrap:'wrap' }}>
+              <span style={{ display:'flex', alignItems:'center', gap:4 }}>
+                <MapPin size={12} style={{ color:'#9CA3AF' }}/>
+                {reserva.sede?.nombre} — Hab. {reserva.habitacion?.numero}
+              </span>
+              <span style={{ display:'flex', alignItems:'center', gap:4 }}>
+                <Calendar size={12} style={{ color:'#9CA3AF' }}/>
+                {new Date((reserva.fecha_entrada||'').split('T')[0]+'T12:00:00').toLocaleDateString('es-PE',{day:'2-digit',month:'short'})}
+                {' → '}
+                {new Date((reserva.fecha_salida||'').split('T')[0]+'T12:00:00').toLocaleDateString('es-PE',{day:'2-digit',month:'short'})}
+                · {noches} noche{noches!==1?'s':''}
+              </span>
+              <span style={{ fontWeight:700, color:'#F5922E', display:'flex', alignItems:'center', gap:4 }}>
+                <BedDouble size={12} style={{ color:'#9CA3AF' }}/> S/ {reserva.precio_total}
+              </span>
+            </div>
+          </div>
+
+          {/* Estado de pago */}
+          {(() => {
+            if (verif.length === 0 && pend.length === 0) return (
+              <div style={{ background:'#FEF2F2', border:'1px solid #FCA5A5', borderRadius:12, padding:'0.75rem 1rem', display:'flex', gap:8 }}>
+                <AlertCircle size={16} style={{ color:'#DC2626', flexShrink:0, marginTop:1 }}/>
+                <div>
+                  <p style={{ fontWeight:700, color:'#DC2626', fontSize:'0.82rem', margin:0 }}>Sin pago registrado</p>
+                  <p style={{ color:'#9CA3AF', fontSize:'0.72rem', margin:'2px 0 0' }}>Total a cobrar: <b>S/ {reserva.precio_total}</b></p>
+                </div>
+              </div>
+            )
+            if (pend.length > 0 && pagado === 0) return (
+              <div style={{ background:'#FFFBEB', border:'1px solid #FDE68A', borderRadius:12, padding:'0.75rem 1rem', display:'flex', gap:8 }}>
+                <AlertCircle size={16} style={{ color:'#D97706', flexShrink:0, marginTop:1 }}/>
+                <div>
+                  <p style={{ fontWeight:700, color:'#D97706', fontSize:'0.82rem', margin:0 }}>Pago pendiente de verificar</p>
+                  <p style={{ color:'#9CA3AF', fontSize:'0.72rem', margin:'2px 0 0' }}>
+                    {pend.map(p => `S/ ${Number(p.monto).toFixed(2)} (${METODO_LABEL[p.metodo_pago]??p.metodo_pago})`).join(' · ')}
+                  </p>
+                </div>
+              </div>
+            )
+            if (saldo > 0) return (
+              <div style={{ background:'#FFF7ED', border:'1px solid #FED7AA', borderRadius:12, padding:'0.75rem 1rem' }}>
+                <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:'0.4rem' }}>
+                  <CreditCard size={15} style={{ color:'#F5922E' }}/>
+                  <p style={{ fontWeight:700, color:'#D97706', fontSize:'0.82rem', margin:0 }}>Pago parcial — saldo pendiente</p>
+                </div>
+                <div style={{ display:'flex', justifyContent:'space-between', fontSize:'0.8rem', marginBottom:3 }}>
+                  <span style={{ color:'#6B7280' }}>Pagado</span>
+                  <span style={{ fontWeight:700, color:'#16A34A' }}>S/ {pagado.toFixed(2)} ✓</span>
+                </div>
+                <div style={{ display:'flex', justifyContent:'space-between', fontSize:'0.8rem', paddingTop:4, borderTop:'1px solid #FED7AA' }}>
+                  <span style={{ color:'#D97706', fontWeight:600 }}>⚠ Saldo a cobrar ahora</span>
+                  <span style={{ fontWeight:800, color:'#F5922E' }}>S/ {saldo.toFixed(2)}</span>
+                </div>
+              </div>
+            )
+            return (
+              <div style={{ background:'#F0FDF4', border:'1px solid #BBF7D0', borderRadius:12, padding:'0.7rem 1rem', display:'flex', gap:8 }}>
+                <CheckCircle size={15} style={{ color:'#16A34A', flexShrink:0 }}/>
+                <p style={{ fontWeight:700, color:'#16A34A', fontSize:'0.82rem', margin:0 }}>
+                  Pago completo — S/ {pagado.toFixed(2)} verificado
+                </p>
+              </div>
+            )
+          })()}
+
+          {/* Cochera */}
+          {cochera && (
+            <div style={{ background:'#FFF7ED', border:'1px solid #FED7AA', borderRadius:12, padding:'0.75rem 1rem' }}>
+              <p style={{ fontSize:'0.68rem', fontWeight:700, color:'#D97706', textTransform:'uppercase', letterSpacing:'0.06em', margin:'0 0 0.4rem' }}>
+                🚗 Cochera reservada
+              </p>
+              <div style={{ display:'flex', gap:'1.5rem', fontSize:'0.82rem', color:'#374151' }}>
+                <span><b>Espacio</b> N° {cochera.cochera?.numero}</span>
+                <span><b>Código</b> {cochera.codigo}</span>
+                {cochera.placa && <span style={{ fontFamily:'monospace', fontWeight:700 }}>{cochera.placa}</span>}
+              </div>
+            </div>
+          )}
+
+          {error && <div style={{ background:'#FEF2F2', border:'1px solid #FCA5A5', color:'#DC2626', borderRadius:10, padding:'0.7rem', fontSize:'0.82rem' }}>{error}</div>}
+
+          {/* Acciones */}
+          {saldo > 0 && !saldoModo ? (
+            <div style={{ display:'flex', flexDirection:'column', gap:'0.5rem' }}>
+              <button onClick={() => setSaldoModo(true)}
+                style={{ width:'100%', padding:'0.85rem', borderRadius:12, border:'none', background:'linear-gradient(135deg,#F5922E,#E07820)', color:'white', fontWeight:700, fontSize:'0.9rem', cursor:'pointer' }}>
+                💰 Cobrar S/ {saldo.toFixed(2)} y hacer Check-in
+              </button>
+              <button onClick={() => onCheckin(reserva.id)}
+                style={{ width:'100%', padding:'0.75rem', borderRadius:10, border:'1.5px solid #E5E7EB', background:'white', color:'#374151', fontWeight:600, fontSize:'0.85rem', cursor:'pointer' }}>
+                Hacer Check-in sin cobrar saldo
+              </button>
+            </div>
+          ) : saldoModo ? (
+            <div style={{ display:'flex', flexDirection:'column', gap:'0.6rem' }}>
+              <p style={{ fontSize:'0.78rem', fontWeight:600, color:'#374151', margin:0 }}>Método de pago del saldo:</p>
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'0.4rem' }}>
+                {METODOS_S.map(m => (
+                  <button key={m.id} onClick={() => setMetodoSaldo(m.id)}
+                    style={{ padding:'0.55rem', borderRadius:8, border:`1.5px solid ${metodoSaldo===m.id?'#F5922E':'#E5E7EB'}`, background:metodoSaldo===m.id?'#FFF7ED':'white', fontWeight:metodoSaldo===m.id?700:400, fontSize:'0.8rem', cursor:'pointer', color:metodoSaldo===m.id?'#F5922E':'#374151' }}>
+                    {m.label}
+                  </button>
+                ))}
+              </div>
+              <button onClick={registrarSaldoYCheckin} disabled={guardando}
+                style={{ width:'100%', padding:'0.85rem', borderRadius:12, border:'none', background:guardando?'#9CA3AF':'linear-gradient(135deg,#16A34A,#15803D)', color:'white', fontWeight:700, fontSize:'0.9rem', cursor:guardando?'not-allowed':'pointer' }}>
+                {guardando ? 'Procesando...' : `Cobrar S/ ${saldo.toFixed(2)} + Check-in`}
+              </button>
+            </div>
+          ) : (
+            <button onClick={() => onCheckin(reserva.id)}
+              style={{ width:'100%', padding:'0.85rem', borderRadius:12, border:'none', background:'linear-gradient(135deg,#16A34A,#15803D)', color:'white', fontWeight:700, fontSize:'0.9rem', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', gap:8 }}>
+              <CheckCircle size={17}/> Confirmar Check-in
+            </button>
+          )}
+
+          <button onClick={onClose}
+            style={{ width:'100%', padding:'0.65rem', borderRadius:10, border:'1.5px solid #E5E7EB', background:'white', color:'#6B7280', fontWeight:600, fontSize:'0.85rem', cursor:'pointer' }}>
+            Cancelar
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── Modal de Check-in rápido ─────────────────────────────────
 function ModalCheckin({ onClose, onDone }) {
-  const [modo, setModo]       = useState('camara') // 'camara' | 'manual'
+  const [modo, setModo]       = useState('manual') // 'camara' | 'manual' — manual por defecto (más fiable en desktop)
   const [codigo, setCodigo]   = useState('')
   const [reserva, setReserva] = useState(null)
   const [buscando, setBusc]   = useState(false)
@@ -230,14 +1112,35 @@ function ModalCheckin({ onClose, onDone }) {
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.83rem', color: '#374151' }}>
                   <Calendar size={14} style={{ color: '#9CA3AF' }}/>
-                  {new Date(reserva.fecha_entrada + 'T12:00:00').toLocaleDateString('es-PE', { day: '2-digit', month: 'short' })}
+                  {new Date((reserva.fecha_entrada||'').split('T')[0] + 'T12:00:00').toLocaleDateString('es-PE', { day: '2-digit', month: 'short' })}
                   {' → '}
-                  {new Date(reserva.fecha_salida + 'T12:00:00').toLocaleDateString('es-PE', { day: '2-digit', month: 'short' })}
+                  {new Date((reserva.fecha_salida||'').split('T')[0] + 'T12:00:00').toLocaleDateString('es-PE', { day: '2-digit', month: 'short' })}
                   <span style={{ color: '#9CA3AF', fontSize: '0.75rem' }}>({noches} noche{noches !== 1 ? 's' : ''})</span>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.83rem' }}>
                   <BedDouble size={14} style={{ color: '#9CA3AF' }}/> <b style={{ color: '#F5922E' }}>S/ {reserva.precio_total}</b>
                 </div>
+                {/* Estado pago inline */}
+                {(() => {
+                  const { pagado, saldo, pend } = calcPagos(reserva.pagos ?? [], reserva.precio_total)
+                  if (saldo > 0 && pagado > 0) return (
+                    <div style={{ background: '#FFF7ED', border: '1px solid #FED7AA', borderRadius: 8, padding: '0.5rem 0.75rem', fontSize: '0.75rem', display: 'flex', justifyContent: 'space-between' }}>
+                      <span style={{ color: '#16A34A', fontWeight: 700 }}>✓ Pagado: S/ {pagado.toFixed(2)}</span>
+                      <span style={{ color: '#F5922E', fontWeight: 700 }}>⚠ Saldo: S/ {saldo.toFixed(2)}</span>
+                    </div>
+                  )
+                  if (pend.length > 0 && pagado === 0) return (
+                    <div style={{ background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 8, padding: '0.5rem 0.75rem', fontSize: '0.75rem', color: '#D97706', fontWeight: 600 }}>
+                      ⏳ Pago pendiente de verificación
+                    </div>
+                  )
+                  if (pagado > 0 && saldo === 0) return (
+                    <div style={{ background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: 8, padding: '0.5rem 0.75rem', fontSize: '0.75rem', color: '#16A34A', fontWeight: 600 }}>
+                      ✅ Pago completo verificado
+                    </div>
+                  )
+                  return null
+                })()}
               </div>
 
               <div style={{ padding: '0 1.25rem 1.25rem' }}>
@@ -277,9 +1180,11 @@ export default function ReservasRecepcion() {
   const [meta, setMeta]         = useState(null)
   const [loading, setLoading]   = useState(true)
   const [filters, setFilters]   = useState({ estado: '', search: '', fecha_desde: '', fecha_hasta: '', page: 1 })
-  const [accionando, setAccionando]   = useState(null)
-  const [modalCheckin, setModalCI]    = useState(false)
-  const [exporting, setExporting]     = useState(false)
+  const [accionando, setAccionando]    = useState(null)
+  const [modalCheckin, setModalCI]     = useState(false)
+  const [detalleCheckin, setDetalle]   = useState(null)
+  const [modalNueva, setModalNueva]    = useState(false)
+  const [exporting, setExporting]      = useState(false)
   const toast   = useToast()
   const { confirm, dialog } = useConfirm()
 
@@ -330,16 +1235,36 @@ export default function ReservasRecepcion() {
           onDone={(msg) => { setModalCI(false); load(); if (msg) toast.success(msg) }}
         />
       )}
+      {detalleCheckin && (
+        <ModalDetalleCheckin
+          reserva={detalleCheckin}
+          onClose={() => setDetalle(null)}
+          onCheckin={(id) => {
+            setDetalle(null)
+            accion(reservasApi.checkin, id, 'Check-in realizado.')
+          }}
+        />
+      )}
+      {modalNueva && (
+        <ModalNuevaReserva
+          onClose={() => setModalNueva(false)}
+          onCreada={() => { setModalNueva(false); load(); toast.success('Reserva creada exitosamente.') }}
+        />
+      )}
 
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
         <div>
           <h1 style={{ fontSize: '1.4rem', fontWeight: 800, color: '#111', marginBottom: '0.15rem' }}>Reservas</h1>
           <p style={{ fontSize: '0.85rem', color: '#6B7280' }}>Gestión y seguimiento de reservaciones</p>
         </div>
-        <div style={{ display: 'flex', gap: 8 }}>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <button onClick={exportPdf} disabled={exporting}
             style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.65rem 1rem', borderRadius: 12, border: '1px solid #BBF7D0', background: '#F0FDF4', color: '#15803D', fontWeight: 600, fontSize: '0.875rem', cursor: 'pointer' }}>
             <FileDown size={16}/> {exporting ? 'Generando...' : 'PDF'}
+          </button>
+          <button onClick={() => setModalNueva(true)}
+            style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.65rem 1.1rem', borderRadius: 12, border: 'none', background: 'linear-gradient(135deg,#F5922E,#E07820)', color: 'white', fontWeight: 700, fontSize: '0.875rem', cursor: 'pointer', boxShadow: '0 2px 8px rgba(245,146,46,0.3)' }}>
+            <User size={16}/> Nueva Reserva
           </button>
           <button onClick={() => setModalCI(true)}
             style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.65rem 1.1rem', borderRadius: 12, border: 'none', background: 'linear-gradient(135deg,#16A34A,#15803D)', color: 'white', fontWeight: 700, fontSize: '0.875rem', cursor: 'pointer', boxShadow: '0 2px 8px rgba(22,163,74,0.3)' }}>
@@ -397,7 +1322,23 @@ export default function ReservasRecepcion() {
               const busy   = accionando === r.id
               return (
                 <tr key={r.id} onMouseEnter={e => e.currentTarget.style.background = '#FAFAFA'} onMouseLeave={e => e.currentTarget.style.background = 'white'}>
-                  <td style={cell}><span style={{ fontFamily: 'monospace', fontWeight: 700, color: '#3D1A06', fontSize: '0.8rem' }}>{r.codigo}</span></td>
+                  <td style={cell}>
+                    <span style={{ fontFamily: 'monospace', fontWeight: 700, color: '#3D1A06', fontSize: '0.8rem' }}>{r.codigo}</span>
+                    {r.origen && r.origen !== 'online' && (
+                      <div style={{ marginTop:2 }}>
+                        <span style={{ fontSize:'0.62rem', fontWeight:700, padding:'1px 7px', borderRadius:9999, background:r.origen==='presencial'?'#DBEAFE':'#EDE9FE', color:r.origen==='presencial'?'#1E40AF':'#5B21B6' }}>
+                          {r.origen==='presencial'?'🏨 Presencial':'📞 Llamada'}
+                        </span>
+                      </div>
+                    )}
+                    {r.descuento_porcentaje > 0 && (
+                      <div style={{ marginTop:2 }}>
+                        <span style={{ fontSize:'0.62rem', fontWeight:700, padding:'1px 7px', borderRadius:9999, background:'#FEF9C3', color:'#854D0E' }}>
+                          🏷️ -{r.descuento_porcentaje}%
+                        </span>
+                      </div>
+                    )}
+                  </td>
                   <td style={cell}>
                     <div style={{ fontWeight: 600 }}>{r.cliente?.name}</div>
                     <div style={{ fontSize: '0.75rem', color: '#9CA3AF' }}>{r.cliente?.email}</div>
@@ -419,7 +1360,7 @@ export default function ReservasRecepcion() {
                       )}
                       {r.estado === 'confirmada' && (
                         <AccionBtn label={busy ? '...' : '↓ Check-in'} color="white" bg="#059669" border="#059669"
-                          onClick={() => accion(reservasApi.checkin, r.id, 'Check-in realizado.')}/>
+                          onClick={() => setDetalle(r)}/>
                       )}
                       {r.estado === 'checkin' && (
                         <AccionBtn label={busy ? '...' : '↑ Check-out'} color="white" bg="#7C3AED" border="#7C3AED"

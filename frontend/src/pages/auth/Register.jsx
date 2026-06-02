@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 
 const BRAND = {
@@ -28,6 +28,8 @@ function Divider() {
 export default function Register() {
   const { register } = useAuth()
   const navigate     = useNavigate()
+  const [searchParams] = useSearchParams()
+  const next = searchParams.get('next')
 
   const [form, setForm]       = useState({ name: '', email: '', password: '', password_confirmation: '', dni: '', telefono: '' })
   const [errors, setErrors]   = useState({})
@@ -43,7 +45,7 @@ export default function Register() {
     setLoading(true)
     try {
       await register(form)
-      navigate('/reservas', { replace: true })
+      navigate(next ?? '/reservas', { replace: true })
     } catch (err) {
       if (err.response?.status === 422) {
         setErrors(err.response.data.errors ?? {})
@@ -86,7 +88,7 @@ export default function Register() {
       <div
         className="hidden lg:flex"
         style={{
-          width: '38%',
+          width: '46%',
           height: '100%',
           position: 'relative',
           flexDirection: 'column',
@@ -187,7 +189,24 @@ export default function Register() {
         justifyContent: 'center',
         padding: '2rem 2rem',
         background: BRAND.cream,
+        position: 'relative',
       }}>
+
+        {/* Botón volver – siempre visible en esquina superior */}
+        <div style={{ position: 'absolute', top: '1rem', left: '1rem', right: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <a href="/habitaciones"
+            style={{ display: 'flex', alignItems: 'center', gap: 6, color: BRAND.wood, fontSize: '0.82rem', fontWeight: 600, textDecoration: 'none', background: 'white', border: `1px solid ${BRAND.gold}30`, padding: '0.45rem 0.9rem', borderRadius: 9999, boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}
+            onMouseEnter={e => e.currentTarget.style.background = '#FDF6ED'}
+            onMouseLeave={e => e.currentTarget.style.background = 'white'}>
+            ← Ver habitaciones
+          </a>
+          <a href="/"
+            style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#9CA3AF', fontSize: '0.78rem', textDecoration: 'none' }}
+            onMouseEnter={e => e.currentTarget.style.color = BRAND.wood}
+            onMouseLeave={e => e.currentTarget.style.color = '#9CA3AF'}>
+            Inicio
+          </a>
+        </div>
 
         {/* Logo móvil */}
         <div className="lg:hidden" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: '1.25rem' }}>
@@ -293,7 +312,8 @@ export default function Register() {
 
           <p style={{ marginTop: '1.25rem', textAlign: 'center', fontSize: '0.875rem', color: BRAND.wood }}>
             ¿Ya tienes cuenta?{' '}
-            <Link to="/login"
+            <Link
+              to={next ? `/login?next=${encodeURIComponent(next)}` : '/login'}
               style={{ color: BRAND.orange, fontWeight: 700, textDecoration: 'none' }}
               onMouseEnter={e => e.currentTarget.style.textDecoration = 'underline'}
               onMouseLeave={e => e.currentTarget.style.textDecoration = 'none'}

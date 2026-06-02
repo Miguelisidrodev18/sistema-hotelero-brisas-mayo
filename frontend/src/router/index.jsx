@@ -1,4 +1,4 @@
-import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
+import { BrowserRouter, Navigate, Route, Routes, useSearchParams } from 'react-router-dom'
 import { AuthProvider, useAuth } from '../context/AuthContext'
 import { ToastProvider } from '../context/ToastContext'
 import PrivateRoute from './PrivateRoute'
@@ -8,6 +8,7 @@ import AppLayout    from '../components/layouts/AppLayout'
 import Landing              from '../pages/public/Landing'
 import HabitacionesPublicas from '../pages/public/HabitacionesPublicas'
 import Restaurante          from '../pages/public/Restaurante'
+import ReciboPago           from '../pages/public/ReciboPago'
 import Login    from '../pages/auth/Login'
 import Register from '../pages/auth/Register'
 
@@ -61,8 +62,15 @@ function Placeholder({ title }) {
 
 function GuestRoute({ children }) {
   const { isAuthenticated, loading, user } = useAuth()
+  const [searchParams] = useSearchParams()
+  const next = searchParams.get('next')
+
   if (loading) return null
   if (isAuthenticated) {
+    // Si hay un destino pendiente (venía de reservar una habitación), respetarlo
+    if (next && user.role === 'cliente') {
+      return <Navigate to={next} replace />
+    }
     const home = {
       administrador: '/admin',
       recepcionista: '/recepcion',
@@ -85,6 +93,7 @@ export default function AppRouter() {
           <Route path="/"              element={<Landing />} />
           <Route path="/habitaciones"  element={<HabitacionesPublicas />} />
           <Route path="/restaurant"    element={<Restaurante />} />
+          <Route path="/recibo/:codigo" element={<ReciboPago />} />
           <Route path="/login"         element={<GuestRoute><Login /></GuestRoute>} />
           <Route path="/register"      element={<GuestRoute><Register /></GuestRoute>} />
 

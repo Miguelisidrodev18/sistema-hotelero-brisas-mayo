@@ -170,7 +170,24 @@ export default function Login() {
         justifyContent: 'center',
         padding: '3rem 2rem',
         background: BRAND.cream,
+        position: 'relative',
       }}>
+
+        {/* Botón volver – esquina superior */}
+        <div style={{ position: 'absolute', top: '1rem', left: '1rem', right: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <a href="/habitaciones"
+            style={{ display: 'flex', alignItems: 'center', gap: 6, color: BRAND.wood, fontSize: '0.82rem', fontWeight: 600, textDecoration: 'none', background: 'white', border: `1px solid ${BRAND.gold}30`, padding: '0.45rem 0.9rem', borderRadius: 9999, boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}
+            onMouseEnter={e => e.currentTarget.style.background = '#FDF6ED'}
+            onMouseLeave={e => e.currentTarget.style.background = 'white'}>
+            ← Ver habitaciones
+          </a>
+          <a href="/"
+            style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#9CA3AF', fontSize: '0.78rem', textDecoration: 'none' }}
+            onMouseEnter={e => e.currentTarget.style.color = BRAND.wood}
+            onMouseLeave={e => e.currentTarget.style.color = '#9CA3AF'}>
+            Inicio
+          </a>
+        </div>
 
         {/* Logo móvil */}
         <div className="lg:hidden" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: '2rem' }}>
@@ -254,7 +271,9 @@ export default function Login() {
 
           <p style={{ marginTop: '2rem', textAlign: 'center', fontSize: '0.875rem', color: BRAND.wood }}>
             ¿No tienes cuenta?{' '}
-            <Link to="/register" style={{ color: BRAND.orange, fontWeight: 700, textDecoration: 'none' }}
+            <Link
+              to={next ? `/register?next=${encodeURIComponent(next)}` : '/register'}
+              style={{ color: BRAND.orange, fontWeight: 700, textDecoration: 'none' }}
               onMouseEnter={e => e.currentTarget.style.textDecoration = 'underline'}
               onMouseLeave={e => e.currentTarget.style.textDecoration = 'none'}
             >
