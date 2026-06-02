@@ -12,8 +12,9 @@ class Reserva extends Model
     protected $fillable = [
         'user_id', 'habitacion_id', 'sede_id', 'created_by',
         'fecha_entrada', 'fecha_salida', 'num_huespedes',
-        'precio_noche', 'precio_total',
-        'estado', 'codigo', 'notas',
+        'precio_noche', 'precio_total', 'precio_original',
+        'descuento_porcentaje', 'descuento_motivo',
+        'origen', 'estado', 'codigo', 'notas',
     ];
 
     protected function casts(): array

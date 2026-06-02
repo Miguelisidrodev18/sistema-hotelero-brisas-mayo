@@ -65,7 +65,7 @@ class PagoController extends Controller
         ]);
     }
 
-    // POST /reservas/{reserva}/pago — registrar pago
+    // POST /reservas/{reserva}/pago — registrar pago (adelanto 50% o total)
     public function store(Request $request, Reserva $reserva)
     {
         $user = auth()->user();
@@ -79,15 +79,22 @@ class PagoController extends Controller
 
         $data = $request->validate([
             'metodo_pago' => 'required|in:efectivo,transferencia,yape,plin,tarjeta',
+            'tipo_pago'   => 'nullable|in:adelanto,total',
             'referencia'  => 'nullable|string|max:100',
             'notas'       => 'nullable|string|max:500',
         ]);
+
+        $tipoPago = $data['tipo_pago'] ?? 'total';
+        $monto    = $tipoPago === 'adelanto'
+            ? round($reserva->precio_total * 0.5, 2)
+            : $reserva->precio_total;
 
         $pago = Pago::create([
             'reserva_id'     => $reserva->id,
             'user_id'        => $reserva->user_id,
             'registrado_por' => $user->id,
-            'monto'          => $reserva->precio_total,
+            'monto'          => $monto,
+            'tipo_pago'      => $tipoPago,
             'metodo_pago'    => $data['metodo_pago'],
             'estado'         => 'pendiente',
             'referencia'     => $data['referencia'] ?? null,
@@ -104,6 +111,39 @@ class PagoController extends Controller
         return response()->json([
             'pago'    => $pago->load('reserva'),
             'reserva' => $reserva->fresh()->load(['cliente:id,name,email', 'habitacion:id,numero,tipo', 'sede:id,nombre']),
+        ], 201);
+    }
+
+    // POST /reservas/{reserva}/pago/saldo — recepcionista cobra el saldo pendiente antes del check-in
+    public function pagarSaldo(Request $request, Reserva $reserva)
+    {
+        $data = $request->validate([
+            'metodo_pago' => 'required|in:efectivo,transferencia,yape,plin,tarjeta',
+            'referencia'  => 'nullable|string|max:100',
+        ]);
+
+        $totalPagado    = $reserva->pagos()->where('estado', 'verificado')->sum('monto');
+        $saldoPendiente = round($reserva->precio_total - $totalPagado, 2);
+
+        if ($saldoPendiente <= 0) {
+            return response()->json(['message' => 'La reserva ya está pagada completamente.'], 422);
+        }
+
+        $pago = Pago::create([
+            'reserva_id'     => $reserva->id,
+            'user_id'        => $reserva->user_id,
+            'registrado_por' => auth()->id(),
+            'monto'          => $saldoPendiente,
+            'tipo_pago'      => 'saldo',
+            'metodo_pago'    => $data['metodo_pago'],
+            'estado'         => 'verificado', // cobrado en persona, se verifica de inmediato
+            'referencia'     => $data['referencia'] ?? null,
+            'fecha_pago'     => now(),
+        ]);
+
+        return response()->json([
+            'pago'    => $pago->load('reserva'),
+            'mensaje' => 'Saldo registrado correctamente.',
         ], 201);
     }
 
@@ -125,5 +165,22 @@ class PagoController extends Controller
     {
         $pago->update(['estado' => 'rechazado']);
         return response()->json($pago->fresh());
+    }
+
+    // GET /recibo/{codigo} — público, para el recibo compartible
+    public function recibo(string $codigo)
+    {
+        $reserva = \App\Models\Reserva::where('codigo', $codigo)
+            ->with([
+                'cliente:id,name,email',
+                'habitacion:id,numero,tipo,piso',
+                'sede:id,nombre',
+            ])
+            ->firstOrFail();
+
+        $pago = $reserva->pagos()->where('estado', 'verificado')->latest()->first()
+             ?? $reserva->pagos()->latest()->first();
+
+        return response()->json(['reserva' => $reserva, 'pago' => $pago]);
     }
 }

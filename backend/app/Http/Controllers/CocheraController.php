@@ -81,8 +81,9 @@ class CocheraController extends Controller
         if ($user->role === 'cliente') {
             $q->where('user_id', $user->id);
         }
-        if ($request->filled('estado'))  $q->where('estado', $request->estado);
-        if ($request->filled('sede_id')) $q->whereHas('cochera', fn ($c) => $c->where('sede_id', $request->sede_id));
+        if ($request->filled('estado'))     $q->where('estado', $request->estado);
+        if ($request->filled('reserva_id')) $q->where('reserva_id', $request->reserva_id);
+        if ($request->filled('sede_id'))    $q->whereHas('cochera', fn ($c) => $c->where('sede_id', $request->sede_id));
 
         return response()->json($q->paginate(20));
     }

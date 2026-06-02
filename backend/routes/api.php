@@ -31,6 +31,9 @@ Route::get('/cocheras/disponibles',     [CocheraController::class, 'disponibles'
 // Menú del restaurante — público
 Route::get('/menu', [PlatoController::class, 'menu']);
 
+// Recibo de pago — público (compartible por WhatsApp)
+Route::get('/recibo/{codigo}', [PagoController::class, 'recibo']);
+
 // Autenticación pública
 Route::prefix('auth')->group(function () {
     Route::post('/register', [AuthController::class, 'register']);
@@ -73,6 +76,11 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get   ('/reservas/{reserva}/pago',         [PagoController::class, 'show']);
     Route::post  ('/reservas/{reserva}/pago',         [PagoController::class, 'store']);
 
+    // Saldo pendiente — solo staff (cobro presencial en check-in)
+    Route::middleware('role:administrador,recepcionista')->group(function () {
+        Route::post('/reservas/{reserva}/pago/saldo', [PagoController::class, 'pagarSaldo']);
+    });
+
     // Pago online con Culqi
     Route::post  ('/culqi/charge',                    [CulqiController::class, 'charge']);
 
@@ -98,10 +106,74 @@ Route::middleware('auth:sanctum')->group(function () {
     // Servicios catálogo (lectura para staff)
     Route::get   ('/servicios',                       [ServicioController::class, 'index']);
 
-    // Recepción — panel del día y caja diaria
+    // Recepción — panel del día, caja diaria y búsqueda de clientes
     Route::middleware('role:administrador,recepcionista')->group(function () {
         Route::get('/recepcion/hoy',   [RecepcionController::class, 'hoy']);
         Route::get('/recepcion/caja',  [RecepcionController::class, 'cajaDiaria']);
+
+        // Consulta DNI / RUC — accesible para recepción
+        Route::get('/recepcion/documento/{numero}', [ConfiguracionController::class, 'buscarDocumento']);
+
+        // Buscar clientes para reservas presenciales
+        Route::get('/recepcion/clientes', function (\Illuminate\Http\Request $request) {
+            $q = $request->input('search', '');
+            return response()->json(
+                \App\Models\User::where('role', 'cliente')
+                    ->where(fn ($query) =>
+                        $query->where('name',     'like', "%{$q}%")
+                              ->orWhere('email',    'like', "%{$q}%")
+                              ->orWhere('dni',      'like', "%{$q}%")
+                              ->orWhere('telefono', 'like', "%{$q}%")
+                    )
+                    ->orderBy('name')
+                    ->limit(15)
+                    ->get(['id','name','email','dni','telefono'])
+            );
+        });
+
+        // Registrar cliente rápido (walk-in) — si el email ya existe lo reutiliza
+        Route::post('/recepcion/clientes', function (\Illuminate\Http\Request $request) {
+            $data = $request->validate([
+                'name'     => 'required|string|max:100',
+                'email'    => 'nullable|email',
+                'telefono' => 'nullable|string|max:20',
+                'dni'      => 'nullable|string|max:15',
+            ]);
+
+            // Si el email ya existe como cliente, devolver ese usuario (no crear duplicado)
+            if (!empty($data['email'])) {
+                $existente = \App\Models\User::where('email', $data['email'])->first();
+                if ($existente && $existente->role === 'cliente') {
+                    return response()->json($existente->only(['id','name','email','dni','telefono']), 200);
+                }
+                // Si existe pero no es cliente, ignorar el email y generar uno temporal
+                if ($existente) {
+                    $data['email'] = null;
+                }
+            }
+
+            // Verificar si ya existe un cliente con el mismo DNI
+            if (!empty($data['dni'])) {
+                $porDni = \App\Models\User::where('dni', $data['dni'])->where('role','cliente')->first();
+                if ($porDni) {
+                    return response()->json($porDni->only(['id','name','email','dni','telefono']), 200);
+                }
+            }
+
+            $emailFinal = $data['email']
+                ?? strtolower(str_replace([' ','\''], '.', $data['name'])) . '.' . rand(100,999) . '@walk-in.brisas';
+
+            $cliente = \App\Models\User::create([
+                'name'     => $data['name'],
+                'email'    => $emailFinal,
+                'password' => \Illuminate\Support\Facades\Hash::make(\Illuminate\Support\Str::random(16)),
+                'role'     => 'cliente',
+                'telefono' => $data['telefono'] ?? null,
+                'dni'      => $data['dni'] ?? null,
+                'activo'   => true,
+            ]);
+            return response()->json($cliente->only(['id','name','email','dni','telefono']), 201);
+        });
     });
 
     // Gestión de pagos (staff)

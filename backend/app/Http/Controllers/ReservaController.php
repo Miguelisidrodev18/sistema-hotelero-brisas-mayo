@@ -16,7 +16,12 @@ class ReservaController extends Controller
     public function index(Request $request)
     {
         $user  = auth()->user();
-        $query = Reserva::with(['cliente:id,name,email,telefono,dni', 'habitacion:id,numero,tipo,piso', 'sede:id,nombre']);
+        $query = Reserva::with([
+            'cliente:id,name,email,telefono,dni',
+            'habitacion:id,numero,tipo,piso',
+            'sede:id,nombre',
+            'pagos:id,reserva_id,monto,tipo_pago,metodo_pago,estado,fecha_pago,referencia',
+        ]);
 
         // Cliente solo ve sus propias reservas
         if ($user->role === 'cliente') {
@@ -42,13 +47,22 @@ class ReservaController extends Controller
 
     public function store(Request $request)
     {
+        $authUser = auth()->user();
+
         $data = $request->validate([
-            'habitacion_id' => 'required|exists:habitaciones,id',
-            'fecha_entrada' => 'required|date|after_or_equal:today',
-            'fecha_salida'  => 'required|date|after:fecha_entrada',
-            'num_huespedes' => 'required|integer|min:1|max:10',
-            'notas'         => 'nullable|string|max:500',
-            'user_id'       => 'nullable|exists:users,id',
+            'habitacion_id'        => 'required|exists:habitaciones,id',
+            'fecha_entrada'        => 'required|date|after_or_equal:today',
+            'fecha_salida'         => 'required|date|after:fecha_entrada',
+            'num_huespedes'        => 'required|integer|min:1|max:10',
+            'notas'                => 'nullable|string|max:500',
+            'user_id'              => 'nullable|exists:users,id',
+            'origen'               => 'nullable|in:online,presencial,llamada',
+            'descuento_porcentaje' => 'nullable|numeric|min:0|max:100',
+            'descuento_motivo'     => 'nullable|string|max:255',
+            // Pago inmediato opcional (para reservas presenciales/llamadas)
+            'pago_metodo'          => 'nullable|in:efectivo,transferencia,yape,plin,tarjeta',
+            'pago_tipo'            => 'nullable|in:adelanto,total',
+            'pago_referencia'      => 'nullable|string|max:100',
         ]);
 
         $habitacion = Habitacion::findOrFail($data['habitacion_id']);
@@ -71,31 +85,68 @@ class ReservaController extends Controller
 
         $noches = now()->parse($data['fecha_entrada'])->diffInDays($data['fecha_salida']);
 
-        // Tarifa por temporada: busca el factor más alto que aplique a estas fechas y sede
+        // Tarifa por temporada
         $factor = TarifaTemporada::where('activo', true)
             ->where(fn ($q) => $q->whereNull('sede_id')->orWhere('sede_id', $habitacion->sede_id))
             ->where('fecha_inicio', '<=', $data['fecha_salida'])
             ->where('fecha_fin',    '>=', $data['fecha_entrada'])
             ->max('factor') ?? 1.0;
 
-        $precioNoche = round($habitacion->precio * $factor, 2);
-        $precioTotal = $precioNoche * $noches;
-        $clienteId   = $data['user_id'] ?? auth()->id();
+        $precioNoche    = round($habitacion->precio * $factor, 2);
+        $precioOriginal = $precioNoche * $noches;
+
+        // Aplicar descuento si corresponde (solo staff puede aplicar descuentos)
+        $descuentoPct = null;
+        $precioTotal  = $precioOriginal;
+        if (!empty($data['descuento_porcentaje']) && in_array($authUser->role, ['administrador','recepcionista'])) {
+            $descuentoPct = (float) $data['descuento_porcentaje'];
+            $precioTotal  = round($precioOriginal * (1 - $descuentoPct / 100), 2);
+        }
+
+        $clienteId = $data['user_id'] ?? $authUser->id;
+        $origen    = $data['origen'] ?? 'online';
+        // Si lo crea staff y no se especificó origen, default presencial
+        if (in_array($authUser->role, ['administrador','recepcionista']) && $origen === 'online' && !isset($data['origen'])) {
+            $origen = 'presencial';
+        }
 
         $reserva = Reserva::create([
-            'user_id'       => $clienteId,
-            'habitacion_id' => $habitacion->id,
-            'sede_id'       => $habitacion->sede_id,
-            'created_by'    => auth()->id(),
-            'fecha_entrada' => $data['fecha_entrada'],
-            'fecha_salida'  => $data['fecha_salida'],
-            'num_huespedes' => $data['num_huespedes'],
-            'precio_noche'  => $precioNoche,
-            'precio_total'  => $precioTotal,
-            'estado'        => 'pendiente',
-            'codigo'        => strtoupper(Str::random(8)),
-            'notas'         => $data['notas'] ?? null,
+            'user_id'              => $clienteId,
+            'habitacion_id'        => $habitacion->id,
+            'sede_id'              => $habitacion->sede_id,
+            'created_by'           => $authUser->id,
+            'fecha_entrada'        => $data['fecha_entrada'],
+            'fecha_salida'         => $data['fecha_salida'],
+            'num_huespedes'        => $data['num_huespedes'],
+            'precio_noche'         => $precioNoche,
+            'precio_total'         => $precioTotal,
+            'precio_original'      => $descuentoPct ? $precioOriginal : null,
+            'descuento_porcentaje' => $descuentoPct,
+            'descuento_motivo'     => $data['descuento_motivo'] ?? null,
+            'origen'               => $origen,
+            'estado'               => 'pendiente',
+            'codigo'               => strtoupper(Str::random(8)),
+            'notas'                => $data['notas'] ?? null,
         ]);
+
+        // Pago inmediato si lo registra un recepcionista
+        if (!empty($data['pago_metodo']) && in_array($authUser->role, ['administrador','recepcionista'])) {
+            $tipoPago = $data['pago_tipo'] ?? 'total';
+            $monto    = $tipoPago === 'adelanto' ? round($reserva->precio_total * 0.5, 2) : $reserva->precio_total;
+            \App\Models\Pago::create([
+                'reserva_id'     => $reserva->id,
+                'user_id'        => $clienteId,
+                'registrado_por' => $authUser->id,
+                'monto'          => $monto,
+                'tipo_pago'      => $tipoPago,
+                'metodo_pago'    => $data['pago_metodo'],
+                'estado'         => 'verificado', // el recepcionista lo cobra en persona
+                'referencia'     => $data['pago_referencia'] ?? null,
+                'fecha_pago'     => now(),
+            ]);
+            $reserva->update(['estado' => 'confirmada']);
+            $habitacion->update(['estado' => 'reservada']);
+        }
 
         $reserva->load(['cliente:id,name,email', 'habitacion:id,numero,tipo', 'sede:id,nombre']);
 

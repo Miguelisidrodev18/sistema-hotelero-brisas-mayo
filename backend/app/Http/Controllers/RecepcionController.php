@@ -18,10 +18,15 @@ class RecepcionController extends Controller
             'habitacion:id,numero,tipo,piso',
             'sede:id,nombre',
         ])
+        ->withSum(['pagos as total_pagado' => fn($q) => $q->where('estado', 'verificado')], 'monto')
         ->where('estado', 'confirmada')
         ->whereDate('fecha_entrada', $hoy)
         ->orderBy('fecha_entrada')
-        ->get();
+        ->get()
+        ->map(function ($r) {
+            $r->saldo_pendiente = max(0, round($r->precio_total - ($r->total_pagado ?? 0), 2));
+            return $r;
+        });
 
         $salidas = Reserva::with([
             'cliente:id,name,email,telefono,dni',

@@ -9,7 +9,7 @@ class Pago extends Model
 {
     protected $fillable = [
         'reserva_id', 'user_id', 'registrado_por',
-        'monto', 'metodo_pago', 'estado',
+        'monto', 'tipo_pago', 'metodo_pago', 'estado',
         'referencia', 'comprobante_url', 'notas', 'fecha_pago',
     ];
 
