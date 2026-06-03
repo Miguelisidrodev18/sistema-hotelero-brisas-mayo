@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { QrCode, X, Search, CheckCircle, ArrowRight, User, BedDouble, Calendar, MapPin, FileDown, Keyboard, Camera, CreditCard, Car, AlertCircle } from 'lucide-react'
+import { QrCode, X, Search, CheckCircle, ArrowRight, User, BedDouble, Calendar, MapPin, FileDown, Keyboard, Camera, CreditCard, Car, AlertCircle, Printer, Receipt } from 'lucide-react'
 import { reservasApi } from '../../api/reservas'
 import { pagosApi } from '../../api/pagos'
 import { cocherasApi } from '../../api/cocheras'
+import { serviciosApi } from '../../api/servicios'
 import { useToast } from '../../context/ToastContext'
 import { useConfirm } from '../../hooks/useConfirm'
 import axiosClient from '../../api/axiosClient'
@@ -173,7 +174,7 @@ function ModalNuevaReserva({ onClose, onCreada }) {
   const [loadingHab, setLoadingHab]     = useState(false)
 
   const [form, setForm] = useState({
-    fecha_entrada: '', fecha_salida: '', num_huespedes: 1,
+    fecha_entrada: '', fecha_salida: '', hora_checkin: '14:00', hora_checkout: '12:00', num_huespedes: 1,
     origen: 'presencial', notas: '',
     descuento: false, descuento_pct: '', descuento_motivo: '',
     pago_ahora: false, pago_tipo: 'total', pago_metodo: 'efectivo', pago_ref: '',
@@ -278,6 +279,8 @@ function ModalNuevaReserva({ onClose, onCreada }) {
         user_id:       cliente?.id,
         fecha_entrada: form.fecha_entrada,
         fecha_salida:  form.fecha_salida,
+        hora_checkin:  form.hora_checkin,
+        hora_checkout: form.hora_checkout,
         num_huespedes: form.num_huespedes,
         origen:        form.origen,
         notas:         form.notas || undefined,
@@ -287,8 +290,8 @@ function ModalNuevaReserva({ onClose, onCreada }) {
         pago_tipo:     form.pago_ahora ? form.pago_tipo   : undefined,
         pago_referencia: form.pago_ref || undefined,
       }
-      await reservasApi.create(payload)
-      onCreada()
+      const res = await reservasApi.create(payload)
+      onCreada(res.data?.codigo)
     } catch (e) {
       setError(e.response?.data?.message ?? 'Error al crear la reserva.')
     } finally { setSaving(false) }
@@ -565,6 +568,22 @@ function ModalNuevaReserva({ onClose, onCreada }) {
                   <label style={lbl}>Salida *</label>
                   <input type="date" min={form.fecha_entrada||today} style={{...inp, opacity:form.fecha_entrada?1:0.5}} disabled={!form.fecha_entrada}
                     value={form.fecha_salida} onChange={e => setForm(f => ({...f, fecha_salida:e.target.value}))}/>
+                </div>
+              </div>
+
+              {/* Horas de check-in / check-out */}
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'0.65rem' }}>
+                <div>
+                  <label style={lbl}>Hora Check-in</label>
+                  <input type="time" style={inp} value={form.hora_checkin}
+                    onChange={e => setForm(f => ({...f, hora_checkin:e.target.value}))}/>
+                  <p style={{ margin:'3px 0 0', fontSize:'0.68rem', color:'#9CA3AF' }}>Hora de ingreso del huésped</p>
+                </div>
+                <div>
+                  <label style={lbl}>Hora Check-out</label>
+                  <input type="time" style={inp} value={form.hora_checkout}
+                    onChange={e => setForm(f => ({...f, hora_checkout:e.target.value}))}/>
+                  <p style={{ margin:'3px 0 0', fontSize:'0.68rem', color:'#9CA3AF' }}>Hora de salida del huésped</p>
                 </div>
               </div>
 
@@ -968,7 +987,7 @@ function ModalDetalleCheckin({ reserva, onClose, onCheckin }) {
 }
 
 // ── Modal de Check-in rápido ─────────────────────────────────
-function ModalCheckin({ onClose, onDone }) {
+function ModalCheckin({ onClose, onDone, onCheckoutRequest }) {
   const [modo, setModo]       = useState('manual') // 'camara' | 'manual' — manual por defecto (más fiable en desktop)
   const [codigo, setCodigo]   = useState('')
   const [reserva, setReserva] = useState(null)
@@ -1151,9 +1170,9 @@ function ModalCheckin({ onClose, onDone }) {
                   </button>
                 )}
                 {reserva.estado === 'checkin' && (
-                  <button onClick={() => hacerAccion(reservasApi.checkout, 'Check-out completado.')} disabled={accion}
+                  <button onClick={() => onCheckoutRequest?.(reserva.id)} disabled={accion}
                     style={{ width: '100%', padding: '0.85rem', borderRadius: 12, border: 'none', background: 'linear-gradient(135deg,#7C3AED,#5B21B6)', color: 'white', fontWeight: 700, fontSize: '0.9rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, opacity: accion ? 0.7 : 1 }}>
-                    <ArrowRight size={17}/> {accion ? 'Procesando...' : 'Hacer Check-out'}
+                    <ArrowRight size={17}/> {accion ? 'Procesando...' : 'Ver Folio y Check-out'}
                   </button>
                 )}
                 {reserva.estado === 'pendiente' && (
@@ -1175,6 +1194,422 @@ function ModalCheckin({ onClose, onDone }) {
   )
 }
 
+// ── Helpers de formato para el folio ────────────────────────────
+function fmt(n)  { return 'S/ ' + Number(n ?? 0).toFixed(2) }
+function fDia(d) {
+  if (!d) return '—'
+  return new Date(d.slice(0,10) + 'T12:00:00').toLocaleDateString('es-PE', { day:'2-digit', month:'short', year:'numeric' })
+}
+const TIPO_LABEL = { adelanto:'Adelanto', saldo:'Saldo', total:'Total' }
+
+// ── Modal Resumen de Check-out ───────────────────────────────────
+// ── Modal de Cargos Adicionales (durante la estadía) ────────────
+function ModalCargosReserva({ reserva, onClose }) {
+  const [servicios, setServicios] = useState([])   // cargados en esta reserva
+  const [catalogo, setCatalogo]   = useState([])   // todos los servicios activos
+  const [selId, setSelId]         = useState('')
+  const [cantidad, setCantidad]   = useState(1)
+  const [saving, setSaving]       = useState(false)
+  const [loadSvc, setLoadSvc]     = useState(true)
+  const toast = useToast()
+
+  // Carga catálogo y servicios actuales
+  useEffect(() => {
+    Promise.all([
+      serviciosApi.getAll(),
+      serviciosApi.deReserva(reserva.id),
+    ]).then(([cat, svc]) => {
+      setCatalogo((cat.data || []).filter(s => s.activo))
+      setServicios(svc.data || [])
+    }).finally(() => setLoadSvc(false))
+  }, [reserva.id])
+
+  async function agregar() {
+    if (!selId) return
+    setSaving(true)
+    try {
+      const { data } = await serviciosApi.agregar(reserva.id, { servicio_id: selId, cantidad })
+      setServicios(prev => [...prev, data])
+      setSelId(''); setCantidad(1)
+    } catch (e) {
+      toast.error(e.response?.data?.message ?? 'Error al agregar cargo.')
+    } finally { setSaving(false) }
+  }
+
+  async function quitar(rsId) {
+    try {
+      await serviciosApi.quitar(reserva.id, rsId)
+      setServicios(prev => prev.filter(s => s.id !== rsId))
+    } catch { toast.error('No se pudo eliminar el cargo.') }
+  }
+
+  const totalSvc = servicios.reduce((s, x) => s + Number(x.subtotal), 0)
+  const inp = { border:'1.5px solid #E5E7EB', borderRadius:9, padding:'0.55rem 0.8rem', fontSize:'0.84rem', outline:'none', background:'white' }
+
+  return (
+    <div onClick={e => e.target === e.currentTarget && onClose()}
+      style={{ position:'fixed', inset:0, zIndex:65, background:'rgba(0,0,0,0.55)', backdropFilter:'blur(4px)', display:'flex', alignItems:'center', justifyContent:'center', padding:'1rem' }}>
+      <div style={{ background:'white', borderRadius:18, width:'100%', maxWidth:500, maxHeight:'90vh', overflowY:'auto', boxShadow:'0 24px 60px rgba(0,0,0,0.22)', display:'flex', flexDirection:'column' }}>
+
+        {/* Header */}
+        <div style={{ position:'sticky', top:0, background:'white', zIndex:1, borderBottom:'1px solid #F3F4F6', padding:'1rem 1.5rem', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+          <div>
+            <p style={{ fontWeight:800, fontSize:'0.95rem', color:'#111827', margin:0 }}>Cargos adicionales</p>
+            <p style={{ fontSize:'0.72rem', color:'#9CA3AF', margin:'2px 0 0' }}>{reserva.codigo} · {reserva.cliente?.name ?? '—'} · Hab {reserva.habitacion?.numero}</p>
+          </div>
+          <button onClick={onClose} style={{ background:'none', border:'none', cursor:'pointer', color:'#9CA3AF' }}><X size={18}/></button>
+        </div>
+
+        <div style={{ padding:'1.25rem 1.5rem', display:'flex', flexDirection:'column', gap:'1rem' }}>
+
+          {/* Formulario agregar */}
+          <div style={{ background:'#F9FAFB', borderRadius:12, padding:'0.9rem 1rem', display:'flex', flexDirection:'column', gap:'0.65rem' }}>
+            <p style={{ fontSize:'0.78rem', fontWeight:700, color:'#374151', margin:0 }}>Agregar cargo</p>
+            <div style={{ display:'flex', gap:'0.5rem', flexWrap:'wrap' }}>
+              <select value={selId} onChange={e => setSelId(e.target.value)}
+                style={{ ...inp, flex:1, minWidth:160 }}>
+                <option value="">— Selecciona servicio —</option>
+                {catalogo.map(s => (
+                  <option key={s.id} value={s.id}>{s.nombre} · S/ {Number(s.precio).toFixed(2)}</option>
+                ))}
+              </select>
+              <input type="number" min={1} max={20} value={cantidad} onChange={e => setCantidad(Number(e.target.value))}
+                style={{ ...inp, width:70, textAlign:'center' }} />
+              <button onClick={agregar} disabled={!selId || saving}
+                style={{ padding:'0.55rem 1.1rem', borderRadius:9, border:'none', background:!selId||saving?'#9CA3AF':'#3D1A06', color:'white', fontWeight:700, fontSize:'0.83rem', cursor:!selId||saving?'not-allowed':'pointer', whiteSpace:'nowrap' }}>
+                {saving ? '...' : '+ Agregar'}
+              </button>
+            </div>
+            {selId && catalogo.find(s => s.id === Number(selId)) && (
+              <p style={{ fontSize:'0.72rem', color:'#6B7280', margin:0 }}>
+                Subtotal: <b>S/ {(Number(catalogo.find(s => s.id === Number(selId))?.precio) * cantidad).toFixed(2)}</b>
+              </p>
+            )}
+          </div>
+
+          {/* Lista de cargos */}
+          {loadSvc ? (
+            <p style={{ textAlign:'center', color:'#9CA3AF', fontSize:'0.82rem' }}>Cargando...</p>
+          ) : servicios.length === 0 ? (
+            <div style={{ textAlign:'center', padding:'1.5rem', background:'#F9FAFB', borderRadius:12, color:'#9CA3AF', fontSize:'0.82rem' }}>
+              Sin cargos adicionales registrados
+            </div>
+          ) : (
+            <div style={{ border:'1px solid #E5E7EB', borderRadius:12, overflow:'hidden' }}>
+              {servicios.map((s, i) => (
+                <div key={s.id} style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'0.65rem 1rem', borderBottom: i < servicios.length-1 ? '1px solid #F3F4F6' : 'none', fontSize:'0.85rem' }}>
+                  <div style={{ flex:1 }}>
+                    <span style={{ fontWeight:600, color:'#111827' }}>{s.servicio?.nombre ?? 'Servicio'}</span>
+                    <span style={{ color:'#9CA3AF', margin:'0 6px' }}>×</span>
+                    <span style={{ color:'#6B7280' }}>{s.cantidad}</span>
+                  </div>
+                  <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+                    <span style={{ fontWeight:700, color:'#374151' }}>S/ {Number(s.subtotal).toFixed(2)}</span>
+                    <button onClick={() => quitar(s.id)}
+                      style={{ background:'none', border:'none', cursor:'pointer', color:'#EF4444', padding:2, display:'flex' }}>
+                      <X size={14}/>
+                    </button>
+                  </div>
+                </div>
+              ))}
+              <div style={{ display:'flex', justifyContent:'space-between', padding:'0.65rem 1rem', background:'#F9FAFB', borderTop:'1px solid #E5E7EB', fontWeight:800 }}>
+                <span>Total servicios</span>
+                <span style={{ color:'#F5922E' }}>S/ {totalSvc.toFixed(2)}</span>
+              </div>
+            </div>
+          )}
+
+          <button onClick={onClose}
+            style={{ width:'100%', padding:'0.65rem', borderRadius:10, border:'1.5px solid #E5E7EB', background:'white', color:'#6B7280', fontWeight:600, fontSize:'0.85rem', cursor:'pointer' }}>
+            Cerrar
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+export function ModalResumenCheckout({ reservaId, onClose, onCheckout }) {
+  const [res, setRes]           = useState(null)
+  const [loading, setLoading]   = useState(true)
+  const [error, setError]       = useState('')
+  const [saving, setSaving]     = useState(false)
+  // Cargo rápido
+  const [catalogo, setCatalogo] = useState([])
+  const [addOpen, setAddOpen]   = useState(false)
+  const [addId, setAddId]       = useState('')
+  const [addQty, setAddQty]     = useState(1)
+  const [addSaving, setAddSaving]   = useState(false)
+  const [metodoPago, setMetodoPago] = useState('efectivo')
+  const toast = useToast()
+
+  function recargar() {
+    axiosClient.get(`/reservas/${reservaId}/resumen`).then(r => setRes(r.data))
+  }
+
+  useEffect(() => {
+    axiosClient.get(`/reservas/${reservaId}/resumen`)
+      .then(r => setRes(r.data))
+      .catch(() => setError('No se pudo cargar el resumen.'))
+      .finally(() => setLoading(false))
+    serviciosApi.getAll().then(r => setCatalogo((r.data || []).filter(s => s.activo)))
+  }, [reservaId])
+
+  async function agregarCargo() {
+    if (!addId) return
+    setAddSaving(true)
+    try {
+      await serviciosApi.agregar(reservaId, { servicio_id: addId, cantidad: addQty })
+      setAddId(''); setAddQty(1); setAddOpen(false)
+      recargar()
+    } catch (e) {
+      toast.error(e.response?.data?.message ?? 'Error al agregar cargo.')
+    } finally { setAddSaving(false) }
+  }
+
+  async function quitarCargo(rsId) {
+    try {
+      await serviciosApi.quitar(reservaId, rsId)
+      recargar()
+    } catch { toast.error('No se pudo eliminar el cargo.') }
+  }
+
+  async function confirmar() {
+    setSaving(true)
+    try {
+      // Si hay saldo pendiente (incluye servicios), cobrarlo primero → queda en pagos
+      if (res?.saldo_pendiente > 0) {
+        await pagosApi.registrarSaldo(reservaId, { metodo_pago: metodoPago })
+      }
+      await reservasApi.checkout(reservaId)
+      onCheckout(r?.codigo)
+    } catch (e) {
+      setError(e.response?.data?.message ?? 'Error al procesar el check-out.')
+    } finally { setSaving(false) }
+  }
+
+  function imprimirFolio() {
+    if (r?.codigo) window.open(`/folio/${r.codigo}`, '_blank')
+  }
+
+  const r   = res?.reserva
+  const hay = (arr) => Array.isArray(arr) && arr.length > 0
+
+  return (
+    <div onClick={e => e.target === e.currentTarget && onClose()}
+      style={{ position:'fixed', inset:0, zIndex:70, background:'rgba(0,0,0,0.55)', backdropFilter:'blur(4px)', display:'flex', alignItems:'center', justifyContent:'center', padding:'1rem' }}>
+      <div style={{ background:'white', borderRadius:18, width:'100%', maxWidth:560, maxHeight:'92vh', overflowY:'auto', boxShadow:'0 24px 60px rgba(0,0,0,0.22)', display:'flex', flexDirection:'column' }}>
+
+        {/* Header */}
+        <div style={{ position:'sticky', top:0, background:'white', zIndex:1, borderBottom:'1px solid #F3F4F6', padding:'1rem 1.5rem', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+          <div>
+            <p style={{ fontWeight:800, fontSize:'1rem', color:'#111827', margin:0, display:'flex', alignItems:'center', gap:6 }}>
+              <Receipt size={16} style={{ color:'#7C3AED' }}/> Folio de Salida
+            </p>
+            {r && <p style={{ fontSize:'0.72rem', color:'#9CA3AF', margin:'2px 0 0', fontFamily:'monospace' }}>{r.codigo}</p>}
+          </div>
+          <button onClick={onClose} className="fp-noprint" style={{ background:'none', border:'none', cursor:'pointer', color:'#9CA3AF' }}><X size={18}/></button>
+        </div>
+
+        <div style={{ padding:'1.25rem 1.5rem', display:'flex', flexDirection:'column', gap:'1rem' }}>
+
+          {loading && <p style={{ textAlign:'center', color:'#6B7280', padding:'2rem 0' }}>Cargando resumen...</p>}
+          {error   && <p style={{ color:'#DC2626', fontWeight:600, textAlign:'center' }}>{error}</p>}
+
+          {res && r && (<>
+
+            {/* Huésped + Habitación */}
+            <div style={{ background:'#F9FAFB', borderRadius:12, padding:'0.9rem 1.1rem', display:'grid', gridTemplateColumns:'1fr 1fr', gap:'0.6rem' }}>
+              <div>
+                <p style={{ fontSize:'0.68rem', fontWeight:700, color:'#9CA3AF', textTransform:'uppercase', margin:'0 0 3px' }}>Huésped</p>
+                <p style={{ fontWeight:700, color:'#111827', margin:0 }}>{r.cliente?.name ?? '—'}</p>
+                {r.cliente?.dni && <p style={{ fontSize:'0.72rem', color:'#6B7280', margin:'1px 0 0' }}>DNI {r.cliente.dni}</p>}
+              </div>
+              <div>
+                <p style={{ fontSize:'0.68rem', fontWeight:700, color:'#9CA3AF', textTransform:'uppercase', margin:'0 0 3px' }}>Habitación</p>
+                <p style={{ fontWeight:700, color:'#111827', margin:0 }}>N° {r.habitacion?.numero} — {r.habitacion?.tipo}</p>
+                <p style={{ fontSize:'0.72rem', color:'#6B7280', margin:'1px 0 0' }}>Piso {r.habitacion?.piso} · {r.sede?.nombre}</p>
+              </div>
+              <div>
+                <p style={{ fontSize:'0.68rem', fontWeight:700, color:'#9CA3AF', textTransform:'uppercase', margin:'0 0 3px' }}>Check-in</p>
+                <p style={{ fontWeight:600, color:'#111827', margin:0 }}>{fDia(r.fecha_entrada)}</p>
+              </div>
+              <div>
+                <p style={{ fontSize:'0.68rem', fontWeight:700, color:'#9CA3AF', textTransform:'uppercase', margin:'0 0 3px' }}>Check-out</p>
+                <p style={{ fontWeight:600, color:'#111827', margin:0 }}>{fDia(r.fecha_salida)}</p>
+              </div>
+            </div>
+
+            {/* Detalle de cargos */}
+            <div style={{ border:'1px solid #E5E7EB', borderRadius:12, overflow:'hidden' }}>
+              <div style={{ background:'#F9FAFB', padding:'0.6rem 1rem', borderBottom:'1px solid #E5E7EB' }}>
+                <p style={{ fontWeight:700, fontSize:'0.78rem', color:'#374151', margin:0 }}>Detalle de cargos</p>
+              </div>
+              <div style={{ padding:'0.5rem 0' }}>
+
+                {/* Alojamiento */}
+                <div style={{ display:'flex', justifyContent:'space-between', padding:'0.45rem 1rem', fontSize:'0.85rem' }}>
+                  <span style={{ color:'#374151' }}>
+                    Alojamiento · {res.noches} {res.noches===1?'noche':'noches'} × {fmt(r.precio_noche)}
+                  </span>
+                  <span style={{ fontWeight:700 }}>{fmt(r.precio_original ?? r.precio_total)}</span>
+                </div>
+
+                {/* Descuento */}
+                {r.descuento_porcentaje > 0 && (
+                  <div style={{ display:'flex', justifyContent:'space-between', padding:'0.45rem 1rem', fontSize:'0.85rem', background:'#FFFBEB' }}>
+                    <span style={{ color:'#92400E', display:'flex', alignItems:'center', gap:6 }}>
+                      🏷️ Descuento {r.descuento_porcentaje}%
+                      {r.descuento_motivo && <span style={{ fontSize:'0.72rem', color:'#B45309' }}>({r.descuento_motivo})</span>}
+                    </span>
+                    <span style={{ fontWeight:700, color:'#D97706' }}>
+                      -{fmt((r.precio_original ?? r.precio_total) - r.precio_total)}
+                    </span>
+                  </div>
+                )}
+
+                {/* Subtotal alojamiento */}
+                <div style={{ display:'flex', justifyContent:'space-between', padding:'0.45rem 1rem', fontSize:'0.85rem', borderTop:'1px solid #F3F4F6' }}>
+                  <span style={{ color:'#6B7280' }}>Subtotal alojamiento</span>
+                  <span style={{ fontWeight:700 }}>{fmt(r.precio_total)}</span>
+                </div>
+
+                {/* Servicios adicionales */}
+                {hay(r.servicios) && (<>
+                  <div style={{ padding:'0.45rem 1rem 0.2rem', borderTop:'1px solid #E5E7EB' }}>
+                    <p style={{ fontSize:'0.72rem', fontWeight:700, color:'#9CA3AF', textTransform:'uppercase', margin:0 }}>Servicios adicionales</p>
+                  </div>
+                  {r.servicios.map(s => (
+                    <div key={s.id} style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'0.35rem 1rem 0.35rem 1.5rem', fontSize:'0.84rem' }}>
+                      <span style={{ color:'#374151', flex:1 }}>{s.servicio?.nombre ?? 'Servicio'} × {s.cantidad}</span>
+                      <span style={{ fontWeight:600, marginRight:8 }}>{fmt(s.subtotal)}</span>
+                      <button onClick={() => quitarCargo(s.id)} title="Eliminar"
+                        style={{ background:'none', border:'none', cursor:'pointer', color:'#EF4444', padding:2, display:'flex', flexShrink:0 }}>
+                        <X size={13}/>
+                      </button>
+                    </div>
+                  ))}
+                  <div style={{ display:'flex', justifyContent:'space-between', padding:'0.45rem 1rem', fontSize:'0.85rem', background:'#F9FAFB' }}>
+                    <span style={{ color:'#6B7280' }}>Subtotal servicios</span>
+                    <span style={{ fontWeight:700 }}>{fmt(res.total_servicios)}</span>
+                  </div>
+                </>)}
+
+                {/* Gran total */}
+                <div style={{ display:'flex', justifyContent:'space-between', padding:'0.65rem 1rem', borderTop:'2px solid #E5E7EB', background:'#F9FAFB' }}>
+                  <span style={{ fontWeight:800, fontSize:'0.9rem', color:'#111827' }}>TOTAL</span>
+                  <span style={{ fontWeight:900, fontSize:'1rem', color:'#111827' }}>{fmt(res.gran_total)}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Historial de pagos */}
+            {hay(r.pagos) && (
+              <div style={{ border:'1px solid #E5E7EB', borderRadius:12, overflow:'hidden' }}>
+                <div style={{ background:'#F9FAFB', padding:'0.6rem 1rem', borderBottom:'1px solid #E5E7EB' }}>
+                  <p style={{ fontWeight:700, fontSize:'0.78rem', color:'#374151', margin:0 }}>Historial de pagos</p>
+                </div>
+                {r.pagos.map(p => (
+                  <div key={p.id} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'0.5rem 1rem', borderBottom:'1px solid #F9FAFB', fontSize:'0.84rem' }}>
+                    <div>
+                      <span style={{ fontWeight:600, color:'#374151' }}>{TIPO_LABEL[p.tipo_pago] ?? p.tipo_pago}</span>
+                      <span style={{ color:'#9CA3AF', margin:'0 6px' }}>·</span>
+                      <span style={{ color:'#6B7280' }}>{METODO_LABEL[p.metodo_pago] ?? p.metodo_pago}</span>
+                    </div>
+                    <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                      <span style={{ fontWeight:700 }}>{fmt(p.monto)}</span>
+                      <span style={{ fontSize:'0.7rem', fontWeight:700, padding:'2px 8px', borderRadius:9999,
+                        background: p.estado==='verificado'?'#DCFCE7':p.estado==='pendiente'?'#FEF9C3':'#FEE2E2',
+                        color:      p.estado==='verificado'?'#15803D':p.estado==='pendiente'?'#854D0E':'#DC2626' }}>
+                        {p.estado}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+                {/* Totales finales */}
+                <div style={{ padding:'0.5rem 1rem', background:'#F9FAFB', display:'flex', justifyContent:'space-between', fontSize:'0.84rem', borderTop:'1px solid #E5E7EB' }}>
+                  <span style={{ color:'#6B7280' }}>Total pagado</span>
+                  <span style={{ fontWeight:700, color:'#16A34A' }}>{fmt(res.total_pagado)}</span>
+                </div>
+                {res.saldo_pendiente > 0 && (
+                  <div style={{ padding:'0.5rem 1rem', background:'#FEF9C3', display:'flex', justifyContent:'space-between', alignItems:'center', fontSize:'0.84rem' }}>
+                    <span style={{ fontWeight:700, color:'#92400E' }}>⚠️ Saldo a cobrar</span>
+                    <span style={{ fontWeight:900, color:'#D97706', fontSize:'0.95rem' }}>{fmt(res.saldo_pendiente)}</span>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Cargo rápido */}
+            {/* Método de pago del saldo (si aplica) */}
+            {res.saldo_pendiente > 0 && (
+              <div style={{ border:'1.5px solid #FDE68A', borderRadius:12, padding:'0.85rem 1rem', background:'#FFFBEB', display:'flex', flexDirection:'column', gap:'0.6rem' }}>
+                <p style={{ fontWeight:700, fontSize:'0.82rem', color:'#92400E', margin:0 }}>
+                  💳 Cobrar saldo al hacer check-out — {fmt(res.saldo_pendiente)}
+                </p>
+                <p style={{ fontSize:'0.72rem', color:'#B45309', margin:0 }}>Incluye alojamiento + servicios adicionales pendientes. Se registrará en Pagos.</p>
+                <div style={{ display:'flex', gap:'0.4rem', flexWrap:'wrap' }}>
+                  {['efectivo','yape','plin','transferencia','tarjeta'].map(m => (
+                    <button key={m} onClick={() => setMetodoPago(m)}
+                      style={{ padding:'5px 12px', borderRadius:8, border:`1.5px solid ${metodoPago===m?'#3D1A06':'#E5E7EB'}`, background:metodoPago===m?'#3D1A06':'white', color:metodoPago===m?'white':'#6B7280', fontSize:'0.75rem', fontWeight:600, cursor:'pointer', textTransform:'capitalize' }}>
+                      {m}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div style={{ border:'1px solid #E5E7EB', borderRadius:12, overflow:'hidden' }}>
+              <button onClick={() => setAddOpen(o => !o)}
+                style={{ width:'100%', display:'flex', alignItems:'center', justifyContent:'space-between', padding:'0.65rem 1rem', background:'#F9FAFB', border:'none', cursor:'pointer', fontSize:'0.82rem', fontWeight:700, color:'#374151' }}>
+                <span>+ Agregar cargo de último momento</span>
+                <span style={{ fontSize:'0.72rem', color:'#9CA3AF' }}>{addOpen ? '▲' : '▼'}</span>
+              </button>
+              {addOpen && (
+                <div style={{ padding:'0.75rem 1rem', display:'flex', flexDirection:'column', gap:'0.6rem' }}>
+                  <div style={{ display:'flex', gap:'0.5rem', flexWrap:'wrap' }}>
+                    <select value={addId} onChange={e => setAddId(e.target.value)}
+                      style={{ flex:1, minWidth:150, border:'1.5px solid #E5E7EB', borderRadius:9, padding:'0.5rem 0.75rem', fontSize:'0.83rem', outline:'none' }}>
+                      <option value="">— Selecciona servicio —</option>
+                      {catalogo.map(s => (
+                        <option key={s.id} value={s.id}>{s.nombre} · S/ {Number(s.precio).toFixed(2)}</option>
+                      ))}
+                    </select>
+                    <input type="number" min={1} max={20} value={addQty} onChange={e => setAddQty(Number(e.target.value))}
+                      style={{ width:65, border:'1.5px solid #E5E7EB', borderRadius:9, padding:'0.5rem', fontSize:'0.83rem', textAlign:'center', outline:'none' }} />
+                    <button onClick={agregarCargo} disabled={!addId || addSaving}
+                      style={{ padding:'0.5rem 1rem', borderRadius:9, border:'none', background:!addId||addSaving?'#9CA3AF':'#3D1A06', color:'white', fontWeight:700, fontSize:'0.82rem', cursor:!addId||addSaving?'not-allowed':'pointer' }}>
+                      {addSaving ? '...' : 'Agregar'}
+                    </button>
+                  </div>
+                  {addId && catalogo.find(s => s.id === Number(addId)) && (
+                    <p style={{ fontSize:'0.72rem', color:'#6B7280', margin:0 }}>
+                      Subtotal: <b>S/ {(Number(catalogo.find(s => s.id === Number(addId))?.precio) * addQty).toFixed(2)}</b>
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Botones */}
+            <div className="fp-noprint" style={{ display:'flex', gap:'0.6rem', paddingTop:'0.25rem' }}>
+              <button onClick={imprimirFolio}
+                style={{ display:'flex', alignItems:'center', gap:6, padding:'0.65rem 1.1rem', borderRadius:10, border:'1.5px solid #E5E7EB', background:'white', color:'#374151', fontWeight:600, fontSize:'0.84rem', cursor:'pointer' }}>
+                <Printer size={14}/> Imprimir folio
+              </button>
+              <button onClick={confirmar} disabled={saving}
+                style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', gap:7, padding:'0.75rem', borderRadius:12, border:'none', background:saving?'#9CA3AF':'linear-gradient(135deg,#7C3AED,#5B21B6)', color:'white', fontWeight:700, fontSize:'0.9rem', cursor:saving?'not-allowed':'pointer' }}>
+                <CheckCircle size={16}/> {saving ? 'Procesando...' : res?.saldo_pendiente > 0 ? `Cobrar ${fmt(res.saldo_pendiente)} + Check-out` : 'Confirmar Check-out'}
+              </button>
+            </div>
+
+          </>)}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function ReservasRecepcion() {
   const [reservas, setReservas] = useState([])
   const [meta, setMeta]         = useState(null)
@@ -1184,6 +1619,10 @@ export default function ReservasRecepcion() {
   const [modalCheckin, setModalCI]     = useState(false)
   const [detalleCheckin, setDetalle]   = useState(null)
   const [modalNueva, setModalNueva]    = useState(false)
+  const [codigoNuevo, setCodigoNuevo]  = useState(null) // codigo de reserva recién creada → ticket check-in
+  const [codigoFolio, setCodigoFolio]  = useState(null) // codigo de reserva finalizada → folio checkout
+  const [modalResumen, setModalResumen] = useState(null) // id de reserva para folio checkout
+  const [modalCargos, setModalCargos]   = useState(null) // reserva objeto para cargos adicionales
   const [exporting, setExporting]      = useState(false)
   const toast   = useToast()
   const { confirm, dialog } = useConfirm()
@@ -1233,6 +1672,20 @@ export default function ReservasRecepcion() {
         <ModalCheckin
           onClose={() => setModalCI(false)}
           onDone={(msg) => { setModalCI(false); load(); if (msg) toast.success(msg) }}
+          onCheckoutRequest={(id) => { setModalCI(false); setModalResumen(id) }}
+        />
+      )}
+      {modalCargos && (
+        <ModalCargosReserva
+          reserva={modalCargos}
+          onClose={() => setModalCargos(null)}
+        />
+      )}
+      {modalResumen && (
+        <ModalResumenCheckout
+          reservaId={modalResumen}
+          onClose={() => setModalResumen(null)}
+          onCheckout={(codigo) => { setModalResumen(null); load(); toast.success('Check-out realizado exitosamente.'); if (codigo) setCodigoFolio(codigo) }}
         />
       )}
       {detalleCheckin && (
@@ -1248,8 +1701,32 @@ export default function ReservasRecepcion() {
       {modalNueva && (
         <ModalNuevaReserva
           onClose={() => setModalNueva(false)}
-          onCreada={() => { setModalNueva(false); load(); toast.success('Reserva creada exitosamente.') }}
+          onCreada={(codigo) => { setModalNueva(false); load(); toast.success('Reserva creada exitosamente.'); if (codigo) setCodigoNuevo(codigo) }}
         />
+      )}
+
+      {/* Banner ticket check-in */}
+      {codigoNuevo && (
+        <div style={{ position: 'fixed', bottom: '5rem', right: '1.5rem', zIndex: 500, background: '#16A34A', color: 'white', borderRadius: 14, padding: '0.85rem 1.1rem', display: 'flex', alignItems: 'center', gap: 10, boxShadow: '0 6px 24px rgba(0,0,0,0.22)' }}>
+          <span style={{ fontWeight: 700, fontSize: '0.85rem' }}>✅ Reserva creada</span>
+          <button onClick={() => { window.open(`/ticket/${codigoNuevo}`, '_blank'); setCodigoNuevo(null) }}
+            style={{ padding: '4px 14px', borderRadius: 8, border: 'none', background: 'white', color: '#16A34A', fontWeight: 800, fontSize: '0.82rem', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+            🖨 Ver ticket
+          </button>
+          <button onClick={() => setCodigoNuevo(null)} style={{ background: 'none', border: 'none', color: 'white', cursor: 'pointer', padding: 0, opacity: 0.8 }}><X size={14}/></button>
+        </div>
+      )}
+
+      {/* Banner folio checkout */}
+      {codigoFolio && (
+        <div style={{ position: 'fixed', bottom: codigoNuevo ? '8.5rem' : '5rem', right: '1.5rem', zIndex: 500, background: '#7C3AED', color: 'white', borderRadius: 14, padding: '0.85rem 1.1rem', display: 'flex', alignItems: 'center', gap: 10, boxShadow: '0 6px 24px rgba(0,0,0,0.22)' }}>
+          <span style={{ fontWeight: 700, fontSize: '0.85rem' }}>✅ Check-out completado</span>
+          <button onClick={() => { window.open(`/folio/${codigoFolio}`, '_blank'); setCodigoFolio(null) }}
+            style={{ padding: '4px 14px', borderRadius: 8, border: 'none', background: 'white', color: '#7C3AED', fontWeight: 800, fontSize: '0.82rem', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+            🖨 Ver folio
+          </button>
+          <button onClick={() => setCodigoFolio(null)} style={{ background: 'none', border: 'none', color: 'white', cursor: 'pointer', padding: 0, opacity: 0.8 }}><X size={14}/></button>
+        </div>
       )}
 
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
@@ -1362,10 +1839,16 @@ export default function ReservasRecepcion() {
                         <AccionBtn label={busy ? '...' : '↓ Check-in'} color="white" bg="#059669" border="#059669"
                           onClick={() => setDetalle(r)}/>
                       )}
-                      {r.estado === 'checkin' && (
-                        <AccionBtn label={busy ? '...' : '↑ Check-out'} color="white" bg="#7C3AED" border="#7C3AED"
-                          onClick={() => accion(reservasApi.checkout, r.id, 'Check-out completado.')}/>
+                      {r.estado === 'finalizada' && (
+                        <AccionBtn label="🖨 Folio" color="#374151" bg="#F3F4F6" border="#E5E7EB"
+                          onClick={() => window.open(`/folio/${r.codigo}`, '_blank')}/>
                       )}
+                      {r.estado === 'checkin' && (<>
+                        <AccionBtn label="📦 Servicios" color="#374151" bg="#F3F4F6" border="#E5E7EB"
+                          onClick={() => setModalCargos(r)}/>
+                        <AccionBtn label={busy ? '...' : '↑ Check-out'} color="white" bg="#7C3AED" border="#7C3AED"
+                          onClick={() => setModalResumen(r.id)}/>
+                      </>)}
                       {['pendiente','confirmada','checkin'].includes(r.estado) && (
                         <AccionBtn label="Cancelar" color="#DC2626" bg="#FEF2F2" border="#FEE2E2"
                           onClick={async () => {

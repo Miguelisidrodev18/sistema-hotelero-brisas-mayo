@@ -106,7 +106,11 @@ export default function Pagos() {
   function setFilter(k, v) { setFilters(f => ({ ...f, [k]: v, page: 1 })) }
 
   function abrirRecibo(codigo, formato) {
-    window.open(`${window.location.origin}/recibo/${codigo}?f=${formato}`, '_blank')
+    if (formato === '80') {
+      window.open(`${window.location.origin}/ticket/${codigo}`, '_blank')
+    } else {
+      window.open(`${window.location.origin}/recibo/${codigo}?f=${formato}`, '_blank')
+    }
   }
 
   function enviarWhatsapp(pago) {

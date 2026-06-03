@@ -31,35 +31,36 @@ const ESTADO_CFG = {
 }
 
 function imprimirFormato(f) {
+  const el80 = document.querySelector('.recibo-80')
+  const elA4 = document.querySelector('.recibo-a4')
+
+  // Mostrar/ocultar directamente en el DOM (evita conflicto con inline styles)
+  if (f === '80') {
+    if (el80) el80.style.display = 'block'
+    if (elA4) elA4.style.display = 'none'
+  } else {
+    if (el80) el80.style.display = 'none'
+    if (elA4) elA4.style.display = 'block'
+  }
+
+  // Inyectar tamaño de página
   const prev = document.getElementById('__ps__')
   if (prev) prev.remove()
   const s = document.createElement('style')
   s.id = '__ps__'
-  if (f === '80') {
-    s.textContent = `
-      @media print {
-        @page { size: 80mm auto; margin: 3mm; }
-        .no-print { display: none !important; }
-        .recibo-a4  { display: none !important; }
-        .recibo-80  { display: block !important; }
-        body { margin: 0; background: white; }
-      }
-    `
-  } else {
-    s.textContent = `
-      @media print {
-        @page { size: A4 portrait; margin: 14mm 18mm; }
-        .no-print { display: none !important; }
-        .recibo-80  { display: none !important; }
-        .recibo-a4  { display: block !important; }
-        body { margin: 0; background: white; }
-        .recibo-a4 { box-shadow: none !important; border-radius: 0 !important; }
-      }
-    `
-  }
+  s.textContent = f === '80'
+    ? `@media print { @page { size: 80mm auto; margin: 3mm; } .no-print { display: none !important; } body { margin: 0; background: white; } }`
+    : `@media print { @page { size: A4 portrait; margin: 14mm 18mm; } .no-print { display: none !important; } body { margin: 0; background: white; } .recibo-a4 { box-shadow: none !important; border-radius: 0 !important; } }`
   document.head.appendChild(s)
+
   window.print()
-  window.addEventListener('afterprint', () => s.remove(), { once: true })
+
+  // Restaurar estado original después de imprimir
+  window.addEventListener('afterprint', () => {
+    s.remove()
+    if (el80) el80.style.display = 'none'
+    if (elA4) elA4.style.display = 'block'
+  }, { once: true })
 }
 
 export default function ReciboPago() {

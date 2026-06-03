@@ -63,6 +63,8 @@ class ReservaController extends Controller
             'pago_metodo'          => 'nullable|in:efectivo,transferencia,yape,plin,tarjeta',
             'pago_tipo'            => 'nullable|in:adelanto,total',
             'pago_referencia'      => 'nullable|string|max:100',
+            'hora_checkin'         => 'nullable|date_format:H:i',
+            'hora_checkout'        => 'nullable|date_format:H:i',
         ]);
 
         $habitacion = Habitacion::findOrFail($data['habitacion_id']);
@@ -127,6 +129,8 @@ class ReservaController extends Controller
             'estado'               => 'pendiente',
             'codigo'               => strtoupper(Str::random(8)),
             'notas'                => $data['notas'] ?? null,
+            'hora_checkin'         => $data['hora_checkin']  ?? '14:00',
+            'hora_checkout'        => $data['hora_checkout'] ?? '12:00',
         ]);
 
         // Pago inmediato si lo registra un recepcionista
@@ -190,6 +194,33 @@ class ReservaController extends Controller
         $reserva->update(['estado' => 'checkin']);
         $reserva->habitacion->update(['estado' => 'ocupada']);
         return response()->json($reserva->fresh()->load(['cliente:id,name,email', 'habitacion:id,numero,tipo', 'sede:id,nombre']));
+    }
+
+    public function resumen(Reserva $reserva)
+    {
+        $this->authorizeReserva($reserva);
+
+        $reserva->load([
+            'cliente:id,name,email,telefono,dni',
+            'habitacion:id,numero,tipo,piso',
+            'sede:id,nombre',
+            'pagos'           => fn ($q) => $q->whereIn('estado', ['verificado', 'pendiente'])->orderBy('created_at'),
+            'servicios.servicio:id,nombre,precio',
+        ]);
+
+        $totalPagado    = $reserva->pagos->where('estado', 'verificado')->sum('monto');
+        $totalServicios = $reserva->servicios->sum('subtotal');
+        $granTotal      = $reserva->precio_total + $totalServicios;
+        $saldo          = max(0, $granTotal - $totalPagado);
+
+        return response()->json([
+            'reserva'          => $reserva,
+            'noches'           => $reserva->noches,
+            'total_pagado'     => round($totalPagado, 2),
+            'total_servicios'  => round($totalServicios, 2),
+            'gran_total'       => round($granTotal, 2),
+            'saldo_pendiente'  => round($saldo, 2),
+        ]);
     }
 
     public function checkout(Reserva $reserva)

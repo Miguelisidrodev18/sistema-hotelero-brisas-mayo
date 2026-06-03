@@ -9,6 +9,8 @@ import Landing              from '../pages/public/Landing'
 import HabitacionesPublicas from '../pages/public/HabitacionesPublicas'
 import Restaurante          from '../pages/public/Restaurante'
 import ReciboPago           from '../pages/public/ReciboPago'
+import TicketCheckin        from '../pages/public/TicketCheckin'
+import FolioSalida          from '../pages/public/FolioSalida'
 import Login    from '../pages/auth/Login'
 import Register from '../pages/auth/Register'
 
@@ -94,6 +96,8 @@ export default function AppRouter() {
           <Route path="/habitaciones"  element={<HabitacionesPublicas />} />
           <Route path="/restaurant"    element={<Restaurante />} />
           <Route path="/recibo/:codigo" element={<ReciboPago />} />
+          <Route path="/ticket/:codigo" element={<TicketCheckin />} />
+          <Route path="/folio/:codigo"  element={<FolioSalida />} />
           <Route path="/login"         element={<GuestRoute><Login /></GuestRoute>} />
           <Route path="/register"      element={<GuestRoute><Register /></GuestRoute>} />
 

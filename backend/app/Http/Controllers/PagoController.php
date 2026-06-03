@@ -14,8 +14,8 @@ class PagoController extends Controller
     public function index(Request $request)
     {
         $q = Pago::with([
-            'reserva:id,codigo,fecha_entrada,fecha_salida,sede_id,habitacion_id',
-            'reserva.cliente:id,name,email',
+            'reserva:id,codigo,fecha_entrada,fecha_salida,sede_id,habitacion_id,user_id',
+            'reserva.cliente:id,name,email,telefono,dni',
             'reserva.habitacion:id,numero,tipo',
             'reserva.sede:id,nombre',
             'registradoPor:id,name',
@@ -123,7 +123,8 @@ class PagoController extends Controller
         ]);
 
         $totalPagado    = $reserva->pagos()->where('estado', 'verificado')->sum('monto');
-        $saldoPendiente = round($reserva->precio_total - $totalPagado, 2);
+        $totalServicios = $reserva->servicios()->sum('subtotal');
+        $saldoPendiente = round(($reserva->precio_total + $totalServicios) - $totalPagado, 2);
 
         if ($saldoPendiente <= 0) {
             return response()->json(['message' => 'La reserva ya está pagada completamente.'], 422);
@@ -165,6 +166,33 @@ class PagoController extends Controller
     {
         $pago->update(['estado' => 'rechazado']);
         return response()->json($pago->fresh());
+    }
+
+    // GET /folio/{codigo} — público, folio de salida con resumen completo
+    public function folio(string $codigo)
+    {
+        $reserva = \App\Models\Reserva::where('codigo', $codigo)
+            ->with([
+                'cliente:id,name,email,telefono,dni',
+                'habitacion:id,numero,tipo,piso',
+                'sede:id,nombre',
+                'pagos'           => fn ($q) => $q->whereIn('estado', ['verificado','pendiente'])->orderBy('created_at'),
+                'servicios.servicio:id,nombre',
+            ])
+            ->firstOrFail();
+
+        $totalPagado    = $reserva->pagos->where('estado', 'verificado')->sum('monto');
+        $totalServicios = $reserva->servicios->sum('subtotal');
+        $granTotal      = $reserva->precio_total + $totalServicios;
+
+        return response()->json([
+            'reserva'         => $reserva,
+            'noches'          => $reserva->noches,
+            'total_pagado'    => round($totalPagado, 2),
+            'total_servicios' => round($totalServicios, 2),
+            'gran_total'      => round($granTotal, 2),
+            'saldo_pendiente' => round(max(0, $granTotal - $totalPagado), 2),
+        ]);
     }
 
     // GET /recibo/{codigo} — público, para el recibo compartible

@@ -31,8 +31,9 @@ Route::get('/cocheras/disponibles',     [CocheraController::class, 'disponibles'
 // Menú del restaurante — público
 Route::get('/menu', [PlatoController::class, 'menu']);
 
-// Recibo de pago — público (compartible por WhatsApp)
+// Recibo de pago y folio de salida — públicos
 Route::get('/recibo/{codigo}', [PagoController::class, 'recibo']);
+Route::get('/folio/{codigo}',  [PagoController::class, 'folio']);
 
 // Autenticación pública
 Route::prefix('auth')->group(function () {
@@ -69,6 +70,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put   ('/reservas/{reserva}',              [ReservaController::class, 'update']);
     Route::patch ('/reservas/{reserva}/confirmar',    [ReservaController::class, 'confirmar']);
     Route::patch ('/reservas/{reserva}/checkin',      [ReservaController::class, 'checkin']);
+    Route::get   ('/reservas/{reserva}/resumen',      [ReservaController::class, 'resumen']);
     Route::patch ('/reservas/{reserva}/checkout',     [ReservaController::class, 'checkout']);
     Route::patch ('/reservas/{reserva}/cancelar',     [ReservaController::class, 'cancelar']);
 

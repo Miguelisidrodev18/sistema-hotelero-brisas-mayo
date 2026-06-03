@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useToast } from '../../context/ToastContext'
 import { useConfirm } from '../../hooks/useConfirm'
 import { reservasApi } from '../../api/reservas'
+import { ModalResumenCheckout } from './Reservas'
 import { pagosApi } from '../../api/pagos'
 import axiosClient from '../../api/axiosClient'
 import {
@@ -173,6 +174,9 @@ export default function Hoy() {
   const [loading, setLoading]     = useState(true)
   const [actionId, setActionId]   = useState(null)
   const [modalSaldo, setModalSaldo] = useState(null) // reserva con saldo pendiente
+  const [ticketCodigo, setTicketCodigo]   = useState(null) // codigo para imprimir ticket post-checkin
+  const [resumenId, setResumenId]         = useState(null)  // id reserva para folio checkout
+  const [codigoFolio, setCodigoFolio]     = useState(null)  // codigo reserva finalizada → banner folio
 
   const hoy = new Date().toLocaleDateString('es-PE', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
 
@@ -200,7 +204,12 @@ export default function Hoy() {
     const ok = await confirm({ title: 'Confirmar check-in', message: '¿Registrar el ingreso del huésped?', confirmLabel: 'Check-in' })
     if (!ok) return
     setActionId(id)
-    try { await reservasApi.checkin(id); toast.success('Check-in registrado.'); load() }
+    try {
+      const res = await reservasApi.checkin(id)
+      toast.success('Check-in registrado.')
+      if (res.data?.codigo) setTicketCodigo(res.data.codigo)
+      load()
+    }
     catch (e) { toast.error(e.response?.data?.message ?? 'Error al hacer check-in.') }
     finally { setActionId(null) }
   }
@@ -212,14 +221,8 @@ export default function Hoy() {
     await ejecutarCheckin(id)
   }
 
-  async function hacerCheckout(reserva) {
-    const id = reserva.id ?? reserva
-    const ok = await confirm({ title: 'Confirmar check-out', message: '¿Registrar la salida del huésped?', confirmLabel: 'Check-out' })
-    if (!ok) return
-    setActionId(id)
-    try { await reservasApi.checkout(id); toast.success('Check-out registrado.'); load() }
-    catch (e) { toast.error(e.response?.data?.message ?? 'Error al hacer check-out.') }
-    finally { setActionId(null) }
+  function hacerCheckout(reserva) {
+    setResumenId(reserva.id ?? reserva)
   }
 
   const stats = data?.stats ?? {}
@@ -232,6 +235,43 @@ export default function Hoy() {
           onClose={() => setModalSaldo(null)}
           onConfirmado={saldoPagado}
         />
+      )}
+
+      {resumenId && (
+        <ModalResumenCheckout
+          reservaId={resumenId}
+          onClose={() => setResumenId(null)}
+          onCheckout={(codigo) => { setResumenId(null); load(); toast.success('Check-out realizado exitosamente.'); if (codigo) setCodigoFolio(codigo) }}
+        />
+      )}
+
+      {/* Banner folio post-checkout */}
+      {codigoFolio && (
+        <div style={{ position: 'fixed', bottom: ticketCodigo ? '8.5rem' : '5rem', right: '1.5rem', zIndex: 500, background: '#7C3AED', color: 'white', borderRadius: 14, padding: '0.85rem 1.1rem', display: 'flex', alignItems: 'center', gap: 10, boxShadow: '0 6px 24px rgba(0,0,0,0.22)' }}>
+          <span style={{ fontWeight: 700, fontSize: '0.85rem' }}>✅ Check-out completado</span>
+          <button onClick={() => { window.open(`/folio/${codigoFolio}`, '_blank'); setCodigoFolio(null) }}
+            style={{ padding: '4px 12px', borderRadius: 8, border: 'none', background: 'white', color: '#7C3AED', fontWeight: 800, fontSize: '0.8rem', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+            🖨 Ver folio
+          </button>
+          <button onClick={() => setCodigoFolio(null)} style={{ background: 'none', border: 'none', color: 'white', cursor: 'pointer', padding: 0, opacity: 0.7 }}>
+            <X size={14}/>
+          </button>
+        </div>
+      )}
+
+      {/* Banner ticket post-checkin */}
+      {ticketCodigo && (
+        <div style={{ position: 'fixed', bottom: '5rem', right: '1.5rem', zIndex: 500, background: '#16A34A', color: 'white', borderRadius: 14, padding: '0.85rem 1.1rem', display: 'flex', alignItems: 'center', gap: 10, boxShadow: '0 6px 24px rgba(0,0,0,0.22)', animation: 'slideIn 0.25s ease' }}>
+          <span style={{ fontWeight: 700, fontSize: '0.85rem' }}>✅ Check-in completado</span>
+          <button
+            onClick={() => { window.open(`/ticket/${ticketCodigo}?autoprint=1`, '_blank'); setTicketCodigo(null) }}
+            style={{ padding: '4px 12px', borderRadius: 8, border: 'none', background: 'white', color: '#16A34A', fontWeight: 800, fontSize: '0.8rem', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+            🖨 Ticket
+          </button>
+          <button onClick={() => setTicketCodigo(null)} style={{ background: 'none', border: 'none', color: 'white', cursor: 'pointer', padding: 0, opacity: 0.7 }}>
+            <X size={14}/>
+          </button>
+        </div>
       )}
 
       {/* Header */}
