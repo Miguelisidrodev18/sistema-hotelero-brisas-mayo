@@ -49,22 +49,54 @@ const HR = () => <div style={{ borderTop: '1px dashed #AAAAAA', margin: '7px 0' 
 
 /* ── Función de impresión (igual que ReciboPago) ── */
 function imprimir() {
+  const wrapper = document.querySelector('.tp-wrapper')
+  const banner  = document.querySelector('.tp-noprint')
+  const ticket  = document.querySelector('.tp-ticket')
+
+  // Guardar estilos originales
+  const wOrig = wrapper ? wrapper.getAttribute('style') : null
+
+  // Aplicar estilos de impresión directamente en el DOM (máxima prioridad)
+  if (wrapper) {
+    wrapper.style.minHeight  = '0'
+    wrapper.style.padding    = '0'
+    wrapper.style.background = 'white'
+  }
+  if (banner) banner.style.display = 'none'
+  if (ticket) {
+    ticket.style.boxShadow   = 'none'
+    ticket.style.borderRadius = '0'
+    ticket.style.margin      = '0'
+    ticket.style.maxWidth    = '100%'
+    ticket.style.width       = '100%'
+  }
+
+  // Solo inyectar tamaño de página (lo demás ya está en el DOM)
   const prev = document.getElementById('__tps__')
   if (prev) prev.remove()
   const s = document.createElement('style')
   s.id = '__tps__'
-  s.textContent = `
-    @media print {
-      @page { size: 80mm auto; margin: 0; }
-      .tp-noprint { display: none !important; }
-      body, html { margin: 0 !important; padding: 0 !important; background: white !important; }
-      body > div, body > #root, #root > * { min-height: 0 !important; padding: 0 !important; background: white !important; }
-      .tp-ticket { box-shadow: none !important; border: none !important; margin: 0 !important; padding: 8px !important; width: 100% !important; max-width: 100% !important; }
-    }
-  `
+  s.textContent = `@media print { @page { size: 80mm auto; margin: 2mm; } }`
   document.head.appendChild(s)
+
   window.print()
-  window.addEventListener('afterprint', () => s.remove(), { once: true })
+
+  // Restaurar todo después de imprimir
+  window.addEventListener('afterprint', () => {
+    s.remove()
+    if (wrapper) {
+      if (wOrig !== null) wrapper.setAttribute('style', wOrig)
+      else wrapper.removeAttribute('style')
+    }
+    if (banner) banner.style.display = ''
+    if (ticket) {
+      ticket.style.boxShadow    = ''
+      ticket.style.borderRadius = ''
+      ticket.style.margin       = ''
+      ticket.style.maxWidth     = ''
+      ticket.style.width        = ''
+    }
+  }, { once: true })
 }
 
 /* ══════════════════════════════════════════════════ */
@@ -107,7 +139,7 @@ export default function TicketCheckin() {
   const esPendiente = pago?.estado === 'pendiente'
 
   return (
-    <div style={{ minHeight: '100vh', background: '#F0F0F0', padding: '1.25rem 1rem 3rem', fontFamily: 'system-ui, sans-serif' }}>
+    <div className="tp-wrapper" style={{ minHeight: '100vh', background: '#F0F0F0', padding: '1.25rem 1rem 3rem', fontFamily: 'system-ui, sans-serif' }}>
 
       {/* ── Banner previsualización ── */}
       <div className="tp-noprint" style={{ maxWidth: 420, margin: '0 auto 1rem', background: 'white', border: '1.5px solid #BBF7D0', borderRadius: 14, padding: '0.9rem 1.1rem', boxShadow: '0 3px 12px rgba(0,0,0,0.07)', display: 'flex', alignItems: 'center', gap: 10 }}>
