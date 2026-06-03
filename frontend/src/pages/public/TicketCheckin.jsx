@@ -55,10 +55,11 @@ function imprimir() {
   s.id = '__tps__'
   s.textContent = `
     @media print {
-      @page { size: 80mm auto; margin: 3mm; }
+      @page { size: 80mm auto; margin: 0; }
       .tp-noprint { display: none !important; }
-      body { margin: 0; background: white; }
-      .tp-ticket { box-shadow: none !important; border: none !important; margin: 0 !important; }
+      body, html { margin: 0 !important; padding: 0 !important; background: white !important; }
+      body > div, body > #root, #root > * { min-height: 0 !important; padding: 0 !important; background: white !important; }
+      .tp-ticket { box-shadow: none !important; border: none !important; margin: 0 !important; padding: 8px !important; width: 100% !important; max-width: 100% !important; }
     }
   `
   document.head.appendChild(s)
