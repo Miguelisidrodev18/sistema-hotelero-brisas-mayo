@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Habitacion extends Model
 {
@@ -22,6 +23,11 @@ class Habitacion extends Model
     public function sede(): BelongsTo
     {
         return $this->belongsTo(Sede::class);
+    }
+
+    public function imagenes(): HasMany
+    {
+        return $this->hasMany(HabitacionImagen::class)->orderBy('orden');
     }
 
     public function tipoLabel(): string

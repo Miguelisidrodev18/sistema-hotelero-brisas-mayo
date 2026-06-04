@@ -3,6 +3,7 @@ import axiosClient from './axiosClient'
 export const reservasApi = {
   getAll:    (params)       => axiosClient.get('/reservas', { params }),
   getOne:    (id)           => axiosClient.get(`/reservas/${id}`),
+  getGrupo:  (grupoId)      => axiosClient.get(`/reservas/grupo/${grupoId}`),
   create:    (data)         => axiosClient.post('/reservas', data),
   update:    (id, data)     => axiosClient.put(`/reservas/${id}`, data),
   confirmar: (id)           => axiosClient.patch(`/reservas/${id}/confirmar`),

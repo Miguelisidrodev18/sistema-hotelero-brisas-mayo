@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { ArrowLeft, BedDouble, Users, Calendar, CheckCircle, Smartphone, Banknote, CreditCard, Building2, Zap, Car, X, MapPin } from 'lucide-react'
 import { pagosApi } from '../../api/pagos'
+import { reservasApi } from '../../api/reservas'
 import { cocherasApi } from '../../api/cocheras'
 import { useBreakpoint } from '../../hooks/useBreakpoint'
 
@@ -317,6 +318,7 @@ export default function PagoReserva() {
   const { isMobile }  = useBreakpoint()
 
   const [data, setData]               = useState(null)
+  const [grupoReservas, setGrupoReservas] = useState([])
   const [loading, setLoading]         = useState(true)
   const [tipoPago, setTipoPago]       = useState('adelanto')
   const [metodo, setMetodo]           = useState('')
@@ -335,6 +337,13 @@ export default function PagoReserva() {
         setData(r.data)
         if (r.data.pago) {
           navigate(`/reservas?nueva=${r.data.reserva.codigo}`, { replace: true })
+        }
+        // Si es parte de un grupo, cargar todas las reservas del grupo
+        const grupoId = r.data.reserva?.grupo_id
+        if (grupoId) {
+          reservasApi.getGrupo(grupoId)
+            .then(gr => setGrupoReservas(gr.data))
+            .catch(() => {})
         }
       })
       .catch(() => navigate('/reservas', { replace: true }))
@@ -546,10 +555,19 @@ export default function PagoReserva() {
           <p style={{ fontSize: '0.72rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#6B7280', marginBottom: '0.75rem' }}>Resumen de reserva</p>
           <div style={{ background: 'white', borderRadius: 18, border: '1px solid #E5E7EB', overflow: 'hidden', boxShadow: '0 4px 16px rgba(61,26,6,0.06)' }}>
             {/* Mini banner */}
-            <div style={{ height: 90, background: 'linear-gradient(135deg, #3D1A06 0%, #7B4019 100%)', display: 'flex', alignItems: 'flex-end', padding: '1rem' }}>
+            <div style={{ background: 'linear-gradient(135deg, #3D1A06 0%, #7B4019 100%)', padding: '1rem', minHeight: 80, display: 'flex', alignItems: 'flex-end' }}>
               <div>
-                <p style={{ color: 'white', fontWeight: 800, fontSize: '1.05rem' }}>Habitación N° {reserva.habitacion?.numero}</p>
-                <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: '0.78rem' }}>{reserva.sede?.nombre}</p>
+                {grupoReservas.length > 1 ? (
+                  <>
+                    <p style={{ color: 'white', fontWeight: 800, fontSize: '1.05rem' }}>{grupoReservas.length} habitaciones</p>
+                    <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: '0.78rem' }}>{grupoReservas.map(r => `N° ${r.habitacion?.numero}`).join(' · ')}</p>
+                  </>
+                ) : (
+                  <>
+                    <p style={{ color: 'white', fontWeight: 800, fontSize: '1.05rem' }}>Habitación N° {reserva.habitacion?.numero}</p>
+                    <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: '0.78rem' }}>{reserva.sede?.nombre}</p>
+                  </>
+                )}
               </div>
             </div>
 
@@ -559,8 +577,19 @@ export default function PagoReserva() {
               <InfoRow label={<span style={{ display: 'flex', alignItems: 'center', gap: 5 }}><Users size={13}/> Huéspedes</span>}  value={`${reserva.num_huespedes} persona${reserva.num_huespedes > 1 ? 's' : ''}`}/>
               <InfoRow label={<span style={{ display: 'flex', alignItems: 'center', gap: 5 }}><BedDouble size={13}/> Noches</span>} value={`${noches} noche${noches > 1 ? 's' : ''}`}/>
               <div style={{ height: 1, background: '#F3F4F6' }}/>
-              <InfoRow label="Precio por noche" value={`S/ ${reserva.precio_noche}`}/>
-              <InfoRow label="Total a pagar" value={`S/ ${reserva.precio_total}`} highlight/>
+              {grupoReservas.length > 1 ? (
+                <>
+                  {grupoReservas.map(r => (
+                    <InfoRow key={r.id} label={`Hab. ${r.habitacion?.numero} (${r.habitacion?.tipo})`} value={`S/ ${r.precio_total}`}/>
+                  ))}
+                  <InfoRow label="Total a pagar" value={`S/ ${grupoReservas.reduce((a, r) => a + Number(r.precio_total), 0).toFixed(2)}`} highlight/>
+                </>
+              ) : (
+                <>
+                  <InfoRow label="Precio por noche" value={`S/ ${reserva.precio_noche}`}/>
+                  <InfoRow label="Total a pagar" value={`S/ ${reserva.precio_total}`} highlight/>
+                </>
+              )}
             </div>
           </div>
 

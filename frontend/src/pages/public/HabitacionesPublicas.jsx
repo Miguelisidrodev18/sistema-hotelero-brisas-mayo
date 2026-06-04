@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { Users, Eye, BedDouble, MapPin, Filter, LogIn, UserPlus, X, CalendarCheck } from 'lucide-react'
+import { Users, Eye, BedDouble, MapPin, Filter, LogIn, UserPlus, X, CalendarCheck, ChevronLeft, ChevronRight } from 'lucide-react'
 import { habitacionesApi } from '../../api/habitaciones'
 import { sedesApi } from '../../api/sedes'
 import { useAuth } from '../../context/AuthContext'
@@ -32,7 +32,7 @@ function MiniCal({ hab, fechasOcupadas = [], onDateSelect }) {
     fechasOcupadas.forEach(({ entrada, salida }) => {
       const d   = new Date(entrada + 'T12:00:00')
       const fin = new Date(salida  + 'T12:00:00')
-      while (d <= fin) {
+      while (d < fin) {
         set.add(d.toISOString().split('T')[0])
         d.setDate(d.getDate() + 1)
       }
@@ -260,7 +260,10 @@ function ModalFechaLibre({ hab, fecha, dest, onClose, navigate }) {
 
 // ── Tarjeta habitación ────────────────────────────────────
 function HabCard({ hab, onReservar, onDateSelect }) {
-  const gradient = hab.sede_imagen ? null : (TIPO_GRADIENTS[hab.tipo] ?? TIPO_GRADIENTS.matrimonial)
+  const [imgIdx, setImgIdx] = useState(0)
+  const fotos    = hab.imagenes?.length > 0 ? hab.imagenes : null
+  const imgSrc   = fotos ? fotos[imgIdx] : (hab.imagen_principal ?? hab.sede_imagen ?? null)
+  const gradient = imgSrc ? null : (TIPO_GRADIENTS[hab.tipo] ?? TIPO_GRADIENTS.matrimonial)
 
   return (
     <article
@@ -269,14 +272,29 @@ function HabCard({ hab, onReservar, onDateSelect }) {
       onMouseLeave={e => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = '0 4px 24px rgba(61,26,6,0.07)' }}>
 
       {/* Imagen */}
-      <div style={{ position: 'relative', height: 200, background: gradient ?? '#3D1A06', overflow: 'hidden', flexShrink: 0 }}>
-        {hab.sede_imagen && (
-          <img src={hab.sede_imagen} alt={hab.sede_nombre}
+      <div style={{ position: 'relative', height: 200, background: imgSrc ? '#3D1A06' : (gradient ?? '#3D1A06'), overflow: 'hidden', flexShrink: 0 }}>
+        {imgSrc && (
+          <img src={imgSrc} alt={hab.sede_nombre}
             style={{ width: '100%', height: '100%', objectFit: 'cover' }}
             onError={e => { e.target.style.display = 'none' }}/>
         )}
-        {!hab.sede_imagen && (
+        {!imgSrc && (
           <div style={{ position: 'absolute', inset: 0, opacity: 0.2, background: 'radial-gradient(circle at 70% 30%, rgba(255,255,255,.5) 0%, transparent 60%)' }}/>
+        )}
+        {fotos && fotos.length > 1 && (
+          <>
+            <button onClick={e => { e.stopPropagation(); setImgIdx(i => (i - 1 + fotos.length) % fotos.length) }}
+              style={{ position: 'absolute', left: 6, top: '50%', transform: 'translateY(-50%)', background: 'rgba(0,0,0,0.4)', border: 'none', borderRadius: '50%', width: 26, height: 26, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'white' }}>
+              <ChevronLeft size={13}/>
+            </button>
+            <button onClick={e => { e.stopPropagation(); setImgIdx(i => (i + 1) % fotos.length) }}
+              style={{ position: 'absolute', right: 6, top: '50%', transform: 'translateY(-50%)', background: 'rgba(0,0,0,0.4)', border: 'none', borderRadius: '50%', width: 26, height: 26, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'white' }}>
+              <ChevronRight size={13}/>
+            </button>
+            <div style={{ position: 'absolute', bottom: 6, left: '50%', transform: 'translateX(-50%)', display: 'flex', gap: 4 }}>
+              {fotos.map((_, i) => <span key={i} style={{ width: 5, height: 5, borderRadius: '50%', background: i === imgIdx ? 'white' : 'rgba(255,255,255,0.45)', display: 'inline-block' }}/>)}
+            </div>
+          </>
         )}
         <span style={{ position: 'absolute', top: 14, left: 14, background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(6px)', color: 'white', fontSize: '0.65rem', fontWeight: 700, padding: '5px 12px', borderRadius: 9999 }}>
           {hab.tipo_label}

@@ -39,50 +39,30 @@ const TIPO   = { adelanto: 'Adelanto', saldo: 'Saldo', total: 'Total' }
 const HR = () => <div style={{ borderTop: '1px dashed #AAAAAA', margin: '7px 0' }} />
 
 function imprimir() {
-  const wrapper = document.querySelector('.fp-wrapper')
-  const banner  = document.querySelector('.fp-noprint')
-  const ticket  = document.querySelector('.fp-ticket')
-
-  const wOrig = wrapper ? wrapper.getAttribute('style') : null
-
-  if (wrapper) {
-    wrapper.style.minHeight  = '0'
-    wrapper.style.padding    = '0'
-    wrapper.style.background = 'white'
-  }
-  if (banner) banner.style.display = 'none'
-  if (ticket) {
-    ticket.style.boxShadow    = 'none'
-    ticket.style.borderRadius = '0'
-    ticket.style.margin       = '0'
-    ticket.style.maxWidth     = '100%'
-    ticket.style.width        = '100%'
-  }
-
   const prev = document.getElementById('__fps__')
   if (prev) prev.remove()
   const s = document.createElement('style')
   s.id = '__fps__'
-  s.textContent = `@media print { @page { size: 80mm auto; margin: 2mm; } }`
+  s.textContent = `
+    @media print {
+      @page { size: 80mm auto; margin: 2mm; }
+      body * { visibility: hidden !important; }
+      .fp-ticket, .fp-ticket * { visibility: visible !important; }
+      .fp-ticket {
+        position: fixed !important;
+        top: 0 !important; left: 0 !important;
+        width: 76mm !important;
+        margin: 0 !important;
+        padding: 4px !important;
+        box-shadow: none !important;
+        border-radius: 0 !important;
+        background: white !important;
+      }
+    }
+  `
   document.head.appendChild(s)
-
   window.print()
-
-  window.addEventListener('afterprint', () => {
-    s.remove()
-    if (wrapper) {
-      if (wOrig !== null) wrapper.setAttribute('style', wOrig)
-      else wrapper.removeAttribute('style')
-    }
-    if (banner) banner.style.display = ''
-    if (ticket) {
-      ticket.style.boxShadow    = ''
-      ticket.style.borderRadius = ''
-      ticket.style.margin       = ''
-      ticket.style.maxWidth     = ''
-      ticket.style.width        = ''
-    }
-  }, { once: true })
+  window.addEventListener('afterprint', () => s.remove(), { once: true })
 }
 
 export default function FolioSalida() {
@@ -163,6 +143,9 @@ export default function FolioSalida() {
           <div style={{ fontSize: '9px', color: '#888', marginTop: 1 }}>
             {'N° F-' + String(reserva.id).padStart(6, '0')}
           </div>
+          <div style={{ fontSize: '9px', color: '#888', marginTop: 2 }}>
+            {'Emision: ' + new Date().toLocaleDateString('es-PE', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+          </div>
           <div style={{ fontSize: '9px', color: '#555', marginTop: 3 }}>Codigo de reserva:</div>
           <div style={{ margin: '4px auto 0', display: 'inline-block', border: '1.5px dashed #555', borderRadius: 3, padding: '3px 16px', fontWeight: 900, fontSize: '16px', letterSpacing: '0.1em' }}>
             {reserva.codigo}
@@ -176,6 +159,16 @@ export default function FolioSalida() {
           <div style={{ fontSize: '9px', fontWeight: 700, color: '#555', textTransform: 'uppercase', marginBottom: 1 }}>Huesped</div>
           <div style={{ fontWeight: 800, fontSize: '11.5px' }}>{reserva.cliente ? reserva.cliente.name : 'Huesped'}</div>
           {reserva.cliente?.dni && <div style={{ fontSize: '9px', color: '#666' }}>{'DNI: ' + reserva.cliente.dni}</div>}
+          {reserva.huespedes && reserva.huespedes.length > 0 && (
+            <div style={{ marginTop: 4 }}>
+              <div style={{ fontSize: '8px', fontWeight: 700, color: '#888', textTransform: 'uppercase', marginBottom: 2 }}>Acompañantes</div>
+              {reserva.huespedes.map((h, i) => (
+                <div key={i} style={{ fontSize: '9px', color: '#555', lineHeight: 1.6 }}>
+                  {`${i + 1}. ${h.nombre}${h.dni ? ' — DNI: ' + h.dni : ''}`}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         <HR />

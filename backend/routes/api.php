@@ -6,6 +6,8 @@ use App\Http\Controllers\CocheraController;
 use App\Http\Controllers\CulqiController;
 use App\Http\Controllers\ExportController;
 use App\Http\Controllers\HabitacionController;
+use App\Http\Controllers\HabitacionImagenController;
+use App\Http\Controllers\HuespedController;
 use App\Http\Controllers\PagoController;
 use App\Http\Controllers\PedidoController;
 use App\Http\Controllers\PedidoCulqiController;
@@ -66,6 +68,7 @@ Route::middleware('auth:sanctum')->group(function () {
     // Reservas — acceso según rol (filtrado interno por controller)
     Route::get   ('/reservas',                        [ReservaController::class, 'index']);
     Route::post  ('/reservas',                        [ReservaController::class, 'store']);
+    Route::get   ('/reservas/grupo/{grupoId}',        [ReservaController::class, 'porGrupo']);
     Route::get   ('/reservas/{reserva}',              [ReservaController::class, 'show']);
     Route::put   ('/reservas/{reserva}',              [ReservaController::class, 'update']);
     Route::patch ('/reservas/{reserva}/confirmar',    [ReservaController::class, 'confirmar']);
@@ -99,6 +102,10 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::patch ('/pedidos/{pedido}/listo',       [PedidoController::class, 'listo']);
         Route::patch ('/pedidos/{pedido}/entregado',   [PedidoController::class, 'entregado']);
     });
+
+    // Huéspedes de reserva
+    Route::post  ('/reservas/{reserva}/huespedes',           [HuespedController::class, 'store']);
+    Route::delete('/reservas/{reserva}/huespedes/{huesped}', [HuespedController::class, 'destroy']);
 
     // Servicios adicionales de reserva (staff)
     Route::get   ('/reservas/{reserva}/servicios',    [ServicioController::class, 'deReserva']);
@@ -187,7 +194,10 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Habitaciones (escritura solo admin/recepcionista)
     Route::middleware('role:administrador,recepcionista')->group(function () {
-        Route::put('/habitaciones/{habitacion}', [HabitacionController::class, 'update']);
+        Route::put   ('/habitaciones/{habitacion}',                        [HabitacionController::class, 'update']);
+        Route::post  ('/habitaciones/{habitacion}/imagenes',               [HabitacionImagenController::class, 'store']);
+        Route::delete('/habitaciones/{habitacion}/imagenes/{imagen}',      [HabitacionImagenController::class, 'destroy']);
+        Route::patch ('/habitaciones/{habitacion}/imagenes/orden',         [HabitacionImagenController::class, 'reordenar']);
     });
 
     // Dashboard gerencial

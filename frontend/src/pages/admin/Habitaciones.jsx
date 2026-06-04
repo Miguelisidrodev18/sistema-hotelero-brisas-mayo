@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { habitacionesApi } from '../../api/habitaciones'
 import { sedesApi } from '../../api/sedes'
 import { useAuth } from '../../context/AuthContext'
-import { BedDouble, Users, Loader2, ChevronDown, Filter } from 'lucide-react'
+import { BedDouble, Users, Loader2, ChevronDown, Filter, Image, X, Plus, Trash2 } from 'lucide-react'
 
 const ESTADOS = [
   { value: '',              label: 'Todos los estados' },
@@ -113,7 +113,99 @@ function StatusDropdown({ habitacion, onUpdate }) {
   )
 }
 
-function HabitacionCard({ hab, canChange, onUpdate }) {
+function ModalImagenes({ hab, onClose, onUpdated }) {
+  const [imagenes, setImagenes] = useState(hab.imagenes ?? [])
+  const [uploading, setUploading] = useState(false)
+  const [error, setError]         = useState('')
+  const fileRef = useRef(null)
+
+  async function handleFile(e) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setUploading(true); setError('')
+    try {
+      const fd = new FormData()
+      fd.append('image', file)
+      const { data } = await habitacionesApi.subirImagen(hab.id, fd)
+      const nuevas = [...imagenes, data]
+      setImagenes(nuevas)
+      onUpdated(hab.id, nuevas)
+    } catch {
+      setError('No se pudo subir la imagen.')
+    } finally {
+      setUploading(false)
+      if (fileRef.current) fileRef.current.value = ''
+    }
+  }
+
+  async function handleEliminar(img) {
+    try {
+      await habitacionesApi.eliminarImagen(hab.id, img.id)
+      const nuevas = imagenes.filter(i => i.id !== img.id)
+      setImagenes(nuevas)
+      onUpdated(hab.id, nuevas)
+    } catch {
+      setError('No se pudo eliminar la imagen.')
+    }
+  }
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
+      <div style={{ background: 'white', borderRadius: 18, width: '100%', maxWidth: 520, maxHeight: '85vh', overflow: 'hidden', boxShadow: '0 24px 60px rgba(0,0,0,0.22)', display: 'flex', flexDirection: 'column' }}>
+        {/* Header */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '1rem 1.25rem', borderBottom: '1px solid #F3F4F6' }}>
+          <div>
+            <p style={{ fontWeight: 800, fontSize: '1rem', color: '#111827', margin: 0 }}>Fotos — Hab. N° {hab.numero}</p>
+            <p style={{ fontSize: '0.75rem', color: '#9CA3AF', margin: '2px 0 0' }}>{imagenes.length} foto{imagenes.length !== 1 ? 's' : ''}</p>
+          </div>
+          <button onClick={onClose} style={{ background: '#F3F4F6', border: 'none', borderRadius: '50%', width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+            <X size={15} style={{ color: '#6B7280' }}/>
+          </button>
+        </div>
+
+        {/* Cuerpo */}
+        <div style={{ overflowY: 'auto', padding: '1.25rem', flex: 1 }}>
+          {error && (
+            <div style={{ background: '#FEF2F2', border: '1px solid #FCA5A5', color: '#DC2626', borderRadius: 8, padding: '0.6rem 0.9rem', fontSize: '0.82rem', marginBottom: '1rem' }}>
+              {error}
+            </div>
+          )}
+
+          {imagenes.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '2rem 1rem', color: '#9CA3AF' }}>
+              <Image size={32} style={{ margin: '0 auto 0.75rem', opacity: 0.4 }}/>
+              <p style={{ fontSize: '0.85rem' }}>Sin fotos todavía</p>
+            </div>
+          ) : (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', gap: '0.65rem', marginBottom: '1.25rem' }}>
+              {imagenes.map(img => (
+                <div key={img.id} style={{ position: 'relative', borderRadius: 10, overflow: 'hidden', aspectRatio: '1', background: '#F3F4F6' }}>
+                  <img src={img.url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }}/>
+                  <button
+                    onClick={() => handleEliminar(img)}
+                    style={{ position: 'absolute', top: 4, right: 4, background: 'rgba(220,38,38,0.9)', border: 'none', borderRadius: '50%', width: 24, height: 24, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+                    <Trash2 size={11} style={{ color: 'white' }}/>
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <input type="file" accept="image/*" ref={fileRef} onChange={handleFile} style={{ display: 'none' }}/>
+          <button
+            onClick={() => fileRef.current?.click()}
+            disabled={uploading}
+            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, width: '100%', padding: '0.75rem', borderRadius: 12, border: '2px dashed #D1D5DB', background: 'white', color: '#374151', fontWeight: 600, fontSize: '0.88rem', cursor: uploading ? 'not-allowed' : 'pointer', opacity: uploading ? 0.7 : 1 }}>
+            {uploading ? <Loader2 size={15} style={{ animation: 'spin 1s linear infinite' }}/> : <Plus size={15}/>}
+            {uploading ? 'Subiendo...' : 'Subir foto'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function HabitacionCard({ hab, canChange, onUpdate, onOpenImagenes }) {
   const s = STATUS_STYLE[hab.estado] || STATUS_STYLE.disponible
 
   return (
@@ -169,6 +261,16 @@ function HabitacionCard({ hab, canChange, onUpdate }) {
           {s.label}
         </div>
       )}
+
+      {/* Botón fotos */}
+      {canChange && (
+        <button
+          onClick={() => onOpenImagenes(hab)}
+          style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '4px 8px', borderRadius: 6, border: '1px solid #E5E7EB', background: 'white', color: '#6B7280', fontSize: 11, fontWeight: 600, cursor: 'pointer', marginTop: 2 }}>
+          <Image size={11}/>
+          {hab.imagenes?.length > 0 ? `${hab.imagenes.length} foto${hab.imagenes.length > 1 ? 's' : ''}` : 'Sin fotos'}
+        </button>
+      )}
     </div>
   )
 }
@@ -182,6 +284,7 @@ export default function Habitaciones() {
   const [pisoFiltro, setPisoFiltro] = useState('')
   const [estadoFiltro, setEstadoFiltro] = useState('')
 
+  const [modalImagenes, setModalImagenes] = useState(null)
   const canChange = CAN_CHANGE_STATUS.includes(user?.role)
 
   useEffect(() => {
@@ -203,6 +306,13 @@ export default function Habitaciones() {
 
   function handleUpdate(updated) {
     setHabs(prev => prev.map(h => (h.id === updated.id ? { ...h, estado: updated.estado } : h)))
+  }
+
+  function handleImagenesUpdated(habId, nuevasImagenes) {
+    setHabs(prev => prev.map(h => h.id === habId ? { ...h, imagenes: nuevasImagenes } : h))
+    if (modalImagenes?.id === habId) {
+      setModalImagenes(hab => ({ ...hab, imagenes: nuevasImagenes }))
+    }
   }
 
   // Derive floors from current results
@@ -382,6 +492,7 @@ export default function Habitaciones() {
                 hab={hab}
                 canChange={canChange}
                 onUpdate={handleUpdate}
+                onOpenImagenes={setModalImagenes}
               />
             ))}
           </div>
@@ -399,6 +510,14 @@ export default function Habitaciones() {
       )}
 
       <style>{`@keyframes spin { from { transform: rotate(0deg) } to { transform: rotate(360deg) } }`}</style>
+
+      {modalImagenes && (
+        <ModalImagenes
+          hab={modalImagenes}
+          onClose={() => setModalImagenes(null)}
+          onUpdated={handleImagenesUpdated}
+        />
+      )}
     </div>
   )
 }

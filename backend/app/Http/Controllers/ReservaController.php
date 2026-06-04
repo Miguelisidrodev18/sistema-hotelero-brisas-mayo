@@ -8,6 +8,7 @@ use App\Models\Habitacion;
 use App\Models\Reserva;
 use App\Models\TarifaTemporada;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
 
@@ -50,7 +51,9 @@ class ReservaController extends Controller
         $authUser = auth()->user();
 
         $data = $request->validate([
-            'habitacion_id'        => 'required|exists:habitaciones,id',
+            'habitacion_id'        => 'required_without:habitaciones|exists:habitaciones,id',
+            'habitaciones'         => 'required_without:habitacion_id|array|min:1|max:6',
+            'habitaciones.*'       => 'exists:habitaciones,id',
             'fecha_entrada'        => 'required|date|after_or_equal:today',
             'fecha_salida'         => 'required|date|after:fecha_entrada',
             'num_huespedes'        => 'required|integer|min:1|max:10',
@@ -59,7 +62,6 @@ class ReservaController extends Controller
             'origen'               => 'nullable|in:online,presencial,llamada',
             'descuento_porcentaje' => 'nullable|numeric|min:0|max:100',
             'descuento_motivo'     => 'nullable|string|max:255',
-            // Pago inmediato opcional (para reservas presenciales/llamadas)
             'pago_metodo'          => 'nullable|in:efectivo,transferencia,yape,plin,tarjeta',
             'pago_tipo'            => 'nullable|in:adelanto,total',
             'pago_referencia'      => 'nullable|string|max:100',
@@ -67,98 +69,135 @@ class ReservaController extends Controller
             'hora_checkout'        => 'nullable|date_format:H:i',
         ]);
 
-        $habitacion = Habitacion::findOrFail($data['habitacion_id']);
+        // Normalizar a array de IDs (backward-compatible con habitacion_id único)
+        $habitacionIds = $data['habitaciones'] ?? [$data['habitacion_id']];
+        $habitaciones  = Habitacion::findMany($habitacionIds)->keyBy('id');
 
-        // Verificar disponibilidad (sin solapamiento)
-        $solapada = Reserva::where('habitacion_id', $habitacion->id)
-            ->whereNotIn('estado', ['cancelada', 'expirada', 'finalizada'])
-            ->where(fn($q) =>
-                $q->whereBetween('fecha_entrada', [$data['fecha_entrada'], $data['fecha_salida']])
-                  ->orWhereBetween('fecha_salida', [$data['fecha_entrada'], $data['fecha_salida']])
-                  ->orWhere(fn($q2) =>
-                      $q2->where('fecha_entrada', '<=', $data['fecha_entrada'])
-                         ->where('fecha_salida', '>=', $data['fecha_salida'])
-                  )
-            )->exists();
+        // Verificar disponibilidad para TODAS las habitaciones antes de crear ninguna
+        foreach ($habitacionIds as $habId) {
+            $solapada = Reserva::where('habitacion_id', $habId)
+                ->whereNotIn('estado', ['cancelada', 'expirada', 'finalizada'])
+                ->where('fecha_salida', '>', $data['fecha_entrada'])
+                ->where('fecha_entrada', '<', $data['fecha_salida'])
+                ->exists();
 
-        if ($solapada) {
-            return response()->json(['message' => 'La habitación no está disponible en esas fechas.'], 422);
+            if ($solapada) {
+                $num = $habitaciones[$habId]->numero ?? $habId;
+                return response()->json(['message' => "La habitación N° {$num} no está disponible en esas fechas."], 422);
+            }
         }
 
-        $noches = now()->parse($data['fecha_entrada'])->diffInDays($data['fecha_salida']);
-
-        // Tarifa por temporada
-        $factor = TarifaTemporada::where('activo', true)
-            ->where(fn ($q) => $q->whereNull('sede_id')->orWhere('sede_id', $habitacion->sede_id))
-            ->where('fecha_inicio', '<=', $data['fecha_salida'])
-            ->where('fecha_fin',    '>=', $data['fecha_entrada'])
-            ->max('factor') ?? 1.0;
-
-        $precioNoche    = round($habitacion->precio * $factor, 2);
-        $precioOriginal = $precioNoche * $noches;
-
-        // Aplicar descuento si corresponde (solo staff puede aplicar descuentos)
-        $descuentoPct = null;
-        $precioTotal  = $precioOriginal;
-        if (!empty($data['descuento_porcentaje']) && in_array($authUser->role, ['administrador','recepcionista'])) {
-            $descuentoPct = (float) $data['descuento_porcentaje'];
-            $precioTotal  = round($precioOriginal * (1 - $descuentoPct / 100), 2);
-        }
-
+        $noches    = now()->parse($data['fecha_entrada'])->diffInDays($data['fecha_salida']);
         $clienteId = $data['user_id'] ?? $authUser->id;
         $origen    = $data['origen'] ?? 'online';
-        // Si lo crea staff y no se especificó origen, default presencial
         if (in_array($authUser->role, ['administrador','recepcionista']) && $origen === 'online' && !isset($data['origen'])) {
             $origen = 'presencial';
         }
 
-        $reserva = Reserva::create([
-            'user_id'              => $clienteId,
-            'habitacion_id'        => $habitacion->id,
-            'sede_id'              => $habitacion->sede_id,
-            'created_by'           => $authUser->id,
-            'fecha_entrada'        => $data['fecha_entrada'],
-            'fecha_salida'         => $data['fecha_salida'],
-            'num_huespedes'        => $data['num_huespedes'],
-            'precio_noche'         => $precioNoche,
-            'precio_total'         => $precioTotal,
-            'precio_original'      => $descuentoPct ? $precioOriginal : null,
-            'descuento_porcentaje' => $descuentoPct,
-            'descuento_motivo'     => $data['descuento_motivo'] ?? null,
-            'origen'               => $origen,
-            'estado'               => 'pendiente',
-            'codigo'               => strtoupper(Str::random(8)),
-            'notas'                => $data['notas'] ?? null,
-            'hora_checkin'         => $data['hora_checkin']  ?? '14:00',
-            'hora_checkout'        => $data['hora_checkout'] ?? '12:00',
-        ]);
+        $reservasCreadas = DB::transaction(function () use ($data, $habitacionIds, $habitaciones, $noches, $clienteId, $origen, $authUser) {
+            $creadas   = [];
+            $grupoId   = null;
 
-        // Pago inmediato si lo registra un recepcionista
-        if (!empty($data['pago_metodo']) && in_array($authUser->role, ['administrador','recepcionista'])) {
-            $tipoPago = $data['pago_tipo'] ?? 'total';
-            $monto    = $tipoPago === 'adelanto' ? round($reserva->precio_total * 0.5, 2) : $reserva->precio_total;
-            \App\Models\Pago::create([
-                'reserva_id'     => $reserva->id,
-                'user_id'        => $clienteId,
-                'registrado_por' => $authUser->id,
-                'monto'          => $monto,
-                'tipo_pago'      => $tipoPago,
-                'metodo_pago'    => $data['pago_metodo'],
-                'estado'         => 'verificado', // el recepcionista lo cobra en persona
-                'referencia'     => $data['pago_referencia'] ?? null,
-                'fecha_pago'     => now(),
-            ]);
-            $reserva->update(['estado' => 'confirmada']);
-            $habitacion->update(['estado' => 'reservada']);
-        }
+            foreach ($habitacionIds as $habId) {
+                $habitacion = $habitaciones[$habId];
 
-        $reserva->load(['cliente:id,name,email', 'habitacion:id,numero,tipo', 'sede:id,nombre']);
+                $factor = TarifaTemporada::where('activo', true)
+                    ->where(fn ($q) => $q->whereNull('sede_id')->orWhere('sede_id', $habitacion->sede_id))
+                    ->where('fecha_inicio', '<=', $data['fecha_salida'])
+                    ->where('fecha_fin',    '>=', $data['fecha_entrada'])
+                    ->max('factor') ?? 1.0;
 
+                $precioNoche    = round($habitacion->precio * $factor, 2);
+                $precioOriginal = $precioNoche * $noches;
+
+                $descuentoPct = null;
+                $precioTotal  = $precioOriginal;
+                if (!empty($data['descuento_porcentaje']) && in_array($authUser->role, ['administrador','recepcionista'])) {
+                    $descuentoPct = (float) $data['descuento_porcentaje'];
+                    $precioTotal  = round($precioOriginal * (1 - $descuentoPct / 100), 2);
+                }
+
+                $reserva = Reserva::create([
+                    'grupo_id'             => $grupoId,
+                    'user_id'              => $clienteId,
+                    'habitacion_id'        => $habitacion->id,
+                    'sede_id'              => $habitacion->sede_id,
+                    'created_by'           => $authUser->id,
+                    'fecha_entrada'        => $data['fecha_entrada'],
+                    'fecha_salida'         => $data['fecha_salida'],
+                    'num_huespedes'        => $data['num_huespedes'],
+                    'precio_noche'         => $precioNoche,
+                    'precio_total'         => $precioTotal,
+                    'precio_original'      => $descuentoPct ? $precioOriginal : null,
+                    'descuento_porcentaje' => $descuentoPct,
+                    'descuento_motivo'     => $data['descuento_motivo'] ?? null,
+                    'origen'               => $origen,
+                    'estado'               => 'pendiente',
+                    'codigo'               => strtoupper(Str::random(8)),
+                    'notas'                => $data['notas'] ?? null,
+                    'hora_checkin'         => $data['hora_checkin']  ?? '14:00',
+                    'hora_checkout'        => $data['hora_checkout'] ?? '12:00',
+                ]);
+
+                // La primera reserva del grupo se auto-referencia como grupo_id
+                if ($grupoId === null && count($habitacionIds) > 1) {
+                    $grupoId = $reserva->id;
+                    $reserva->update(['grupo_id' => $grupoId]);
+                }
+
+                // Pago inmediato si lo registra un recepcionista
+                if (!empty($data['pago_metodo']) && in_array($authUser->role, ['administrador','recepcionista'])) {
+                    $tipoPago = $data['pago_tipo'] ?? 'total';
+                    $monto    = $tipoPago === 'adelanto' ? round($reserva->precio_total * 0.5, 2) : $reserva->precio_total;
+                    \App\Models\Pago::create([
+                        'reserva_id'     => $reserva->id,
+                        'user_id'        => $clienteId,
+                        'registrado_por' => $authUser->id,
+                        'monto'          => $monto,
+                        'tipo_pago'      => $tipoPago,
+                        'metodo_pago'    => $data['pago_metodo'],
+                        'estado'         => 'verificado',
+                        'referencia'     => $data['pago_referencia'] ?? null,
+                        'fecha_pago'     => now(),
+                    ]);
+                    $reserva->update(['estado' => 'confirmada']);
+                    $habitacion->update(['estado' => 'reservada']);
+                }
+
+                $creadas[] = $reserva;
+            }
+
+            return $creadas;
+        });
+
+        // Enviar email solo para la primera reserva
         try {
-            Mail::to($reserva->cliente->email)->send(new ReservaConfirmadaMail($reserva));
+            $primera = $reservasCreadas[0]->load(['cliente:id,name,email', 'habitacion:id,numero,tipo', 'sede:id,nombre']);
+            Mail::to($primera->cliente->email)->send(new ReservaConfirmadaMail($primera));
         } catch (\Throwable) {}
 
-        return response()->json($reserva, 201);
+        // Respuesta backward-compatible: array solo si hay múltiples habitaciones
+        if (count($reservasCreadas) === 1) {
+            return response()->json($reservasCreadas[0]->load(['cliente:id,name,email', 'habitacion:id,numero,tipo', 'sede:id,nombre']), 201);
+        }
+
+        $cargadas = collect($reservasCreadas)->map(fn($r) => $r->load(['cliente:id,name,email', 'habitacion:id,numero,tipo', 'sede:id,nombre']));
+        return response()->json(['reservas' => $cargadas], 201);
+    }
+
+    public function porGrupo(int $grupoId)
+    {
+        $user     = auth()->user();
+        $reservas = Reserva::where(fn($q) => $q->where('grupo_id', $grupoId)->orWhere('id', $grupoId))
+            ->with(['habitacion:id,numero,tipo,piso', 'sede:id,nombre', 'pagos:id,reserva_id,monto,estado'])
+            ->get();
+
+        // Clientes solo ven sus propias reservas de grupo
+        if ($user->role === 'cliente') {
+            $reservas = $reservas->where('user_id', $user->id)->values();
+        }
+
+        return response()->json($reservas);
     }
 
     public function show(Reserva $reserva)

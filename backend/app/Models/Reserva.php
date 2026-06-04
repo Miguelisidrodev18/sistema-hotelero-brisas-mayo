@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class Reserva extends Model
 {
     protected $fillable = [
+        'grupo_id',
         'user_id', 'habitacion_id', 'sede_id', 'created_by',
         'fecha_entrada', 'fecha_salida', 'hora_checkin', 'hora_checkout', 'num_huespedes',
         'precio_noche', 'precio_total', 'precio_original',
@@ -53,6 +54,11 @@ class Reserva extends Model
     public function servicios(): HasMany
     {
         return $this->hasMany(ReservaServicio::class);
+    }
+
+    public function huespedes(): HasMany
+    {
+        return $this->hasMany(ReservaHuesped::class);
     }
 
     public function getNochesAttribute(): int

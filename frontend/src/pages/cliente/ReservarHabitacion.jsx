@@ -4,6 +4,7 @@ import { Users, BedDouble, MapPin, Eye, ArrowLeft, ChevronLeft, ChevronRight } f
 import { habitacionesApi } from '../../api/habitaciones'
 import { sedesApi } from '../../api/sedes'
 import { reservasApi } from '../../api/reservas'
+import axiosClient from '../../api/axiosClient'
 import { useBreakpoint } from '../../hooks/useBreakpoint'
 
 const TIPO_GRADIENTS = {
@@ -15,13 +16,15 @@ const TIPO_GRADIENTS = {
   triple:                'linear-gradient(135deg, #5b21b6 0%, #3b0764 100%)',
 }
 
-function HabCard({ hab, selected, onSelect }) {
-  const gradient = hab.sede_imagen ? null : (TIPO_GRADIENTS[hab.tipo] ?? TIPO_GRADIENTS.matrimonial)
-  const isSelected = selected?.id === hab.id
+function HabCard({ hab, selectedList, onToggle }) {
+  const idx       = selectedList.findIndex(h => h.id === hab.id)
+  const isSelected = idx !== -1
+  const imgSrc    = hab.imagen_principal ?? hab.sede_imagen
+  const gradient  = imgSrc ? null : (TIPO_GRADIENTS[hab.tipo] ?? TIPO_GRADIENTS.matrimonial)
 
   return (
     <article
-      onClick={() => onSelect(hab)}
+      onClick={() => onToggle(hab)}
       style={{
         borderRadius: 18, overflow: 'hidden', cursor: 'pointer',
         border: `2px solid ${isSelected ? '#F5922E' : 'rgba(0,0,0,0.07)'}`,
@@ -32,8 +35,8 @@ function HabCard({ hab, selected, onSelect }) {
     >
       {/* Imagen */}
       <div style={{ position: 'relative', height: 160, background: gradient ?? '#3D1A06', overflow: 'hidden' }}>
-        {hab.sede_imagen && (
-          <img src={hab.sede_imagen} alt={hab.sede_nombre}
+        {imgSrc && (
+          <img src={imgSrc} alt={hab.sede_nombre}
             style={{ width: '100%', height: '100%', objectFit: 'cover' }}
             onError={e => e.target.style.display = 'none'}/>
         )}
@@ -45,8 +48,8 @@ function HabCard({ hab, selected, onSelect }) {
           S/ {hab.precio}<span style={{ fontSize: '0.6rem', fontWeight: 400 }}>/noche</span>
         </div>
         {isSelected && (
-          <div style={{ position: 'absolute', top: 10, right: 10, width: 28, height: 28, borderRadius: '50%', background: '#F5922E', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: 700, fontSize: '1rem' }}>
-            ✓
+          <div style={{ position: 'absolute', top: 10, right: 10, width: 26, height: 26, borderRadius: '50%', background: '#F5922E', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: 800, fontSize: '0.8rem' }}>
+            {idx + 1}
           </div>
         )}
       </div>
@@ -75,7 +78,7 @@ function CalendarioReserva({ fechasOcupadas = [], entrada, salida, today, onSele
     const s = new Set()
     fechasOcupadas.forEach(({ entrada: e, salida: sa }) => {
       const d = new Date(e + 'T12:00:00'), fin = new Date(sa + 'T12:00:00')
-      while (d <= fin) { s.add(d.toISOString().split('T')[0]); d.setDate(d.getDate() + 1) }
+      while (d < fin) { s.add(d.toISOString().split('T')[0]); d.setDate(d.getDate() + 1) }
     })
     return s
   }, [fechasOcupadas])
@@ -244,7 +247,7 @@ export default function ReservarHabitacion() {
   const [step, setStep]               = useState(preHabId ? 2 : 1)
   const [habitaciones, setHabitaciones] = useState([])
   const [sedes, setSedes]             = useState([])
-  const [selected, setSelected]       = useState(null)
+  const [selected, setSelected]       = useState([]) // array para multi-selección
   const [filtroSede, setFiltroSede]   = useState('')
   const [filtroPiso, setFiltroPiso]   = useState(null) // null = todos
   const [loading, setLoading]         = useState(true)
@@ -253,6 +256,8 @@ export default function ReservarHabitacion() {
 
   const today = new Date().toISOString().split('T')[0]
   const [form, setForm] = useState({ fecha_entrada: preEntrada, fecha_salida: '', num_huespedes: 1 })
+  const [huespedes, setHuespedes] = useState([{ nombre: '', dni: '' }])
+  const [mostrarHuespedes, setMostrarHuespedes] = useState(false)
 
   // Cargar habitaciones disponibles
   useEffect(() => {
@@ -265,7 +270,7 @@ export default function ReservarHabitacion() {
         setHabitaciones(sorted)
         if (preHabId) {
           const hab = sorted.find(h => h.id === preHabId)
-          if (hab) setSelected(hab)
+          if (hab) setSelected([hab])
         }
       })
       .finally(() => setLoading(false))
@@ -278,19 +283,38 @@ export default function ReservarHabitacion() {
   const noches = form.fecha_entrada && form.fecha_salida
     ? Math.ceil((new Date(form.fecha_salida) - new Date(form.fecha_entrada)) / 86400000)
     : 0
-  const total = selected ? selected.precio * noches : 0
+  const total = selected.reduce((acc, h) => acc + h.precio * noches, 0)
+
+  function handleToggleHab(hab) {
+    setSelected(prev => {
+      const exists = prev.find(h => h.id === hab.id)
+      return exists ? prev.filter(h => h.id !== hab.id) : [...prev, hab]
+    })
+  }
 
   async function handleConfirmar() {
-    if (!selected || !form.fecha_entrada || !form.fecha_salida || noches < 1) return
+    if (selected.length === 0 || !form.fecha_entrada || !form.fecha_salida || noches < 1) return
     setSaving(true); setError('')
     try {
-      const { data } = await reservasApi.create({
-        habitacion_id:  selected.id,
-        fecha_entrada:  form.fecha_entrada,
-        fecha_salida:   form.fecha_salida,
-        num_huespedes:  form.num_huespedes,
-      })
-      navigate(`/reservas/pago/${data.id}`)
+      const payload = {
+        fecha_entrada: form.fecha_entrada,
+        fecha_salida:  form.fecha_salida,
+        num_huespedes: form.num_huespedes,
+      }
+      if (selected.length === 1) {
+        payload.habitacion_id = selected[0].id
+      } else {
+        payload.habitaciones = selected.map(h => h.id)
+      }
+      const { data } = await reservasApi.create(payload)
+      // Respuesta puede ser objeto simple (1 hab) o { reservas: [...] } (múltiples)
+      const primeraId = data.reservas ? data.reservas[0].id : data.id
+      // Guardar huéspedes si hay al menos uno con nombre (fire-and-forget)
+      const huespedesValidos = huespedes.filter(h => h.nombre.trim())
+      if (huespedesValidos.length > 0) {
+        axiosClient.post(`/reservas/${primeraId}/huespedes`, { huespedes: huespedesValidos }).catch(() => {})
+      }
+      navigate(`/reservas/pago/${primeraId}`)
     } catch (err) {
       setError(err.response?.data?.message ?? 'Error al crear la reserva. Intenta de nuevo.')
     } finally {
@@ -305,7 +329,7 @@ export default function ReservarHabitacion() {
       <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1.75rem' }}>
         <button onClick={() => step === 2 && !preHabId ? setStep(1) : navigate('/reservas')}
           style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', background: 'none', border: 'none', color: '#6B7280', cursor: 'pointer', fontSize: '0.875rem', padding: '0.4rem 0' }}>
-          <ArrowLeft size={16}/> {step === 2 && !preHabId ? 'Cambiar habitación' : 'Volver a mis reservas'}
+          <ArrowLeft size={16}/> {step === 2 && !preHabId ? `Cambiar habitación${selected.length > 1 ? 'es' : ''}` : 'Volver a mis reservas'}
         </button>
       </div>
 
@@ -389,11 +413,29 @@ export default function ReservarHabitacion() {
                     )}
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: '1rem' }}>
                       {habs.map(h => (
-                        <HabCard key={h.id} hab={h} selected={selected} onSelect={hab => { setSelected(hab); setStep(2) }}/>
+                        <HabCard key={h.id} hab={h} selectedList={selected} onToggle={handleToggleHab}/>
                       ))}
                     </div>
                   </div>
                 ))}
+              </div>
+            )}
+
+            {/* Barra de selección flotante cuando hay habitaciones elegidas */}
+            {selected.length > 0 && (
+              <div style={{ position: 'sticky', bottom: 16, marginTop: '1.5rem', background: '#3D1A06', borderRadius: 16, padding: '0.9rem 1.25rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', boxShadow: '0 8px 30px rgba(61,26,6,0.3)', gap: '1rem' }}>
+                <div>
+                  <p style={{ color: 'white', fontWeight: 800, fontSize: '0.9rem', margin: 0 }}>
+                    {selected.length} habitación{selected.length > 1 ? 'es' : ''} seleccionada{selected.length > 1 ? 's' : ''}
+                  </p>
+                  <p style={{ color: 'rgba(255,255,255,0.65)', fontSize: '0.75rem', margin: '2px 0 0' }}>
+                    {selected.map(h => `N° ${h.numero}`).join(' · ')}
+                  </p>
+                </div>
+                <button onClick={() => setStep(2)}
+                  style={{ flexShrink: 0, padding: '0.65rem 1.35rem', borderRadius: 12, border: 'none', background: '#F5922E', color: 'white', fontWeight: 700, fontSize: '0.9rem', cursor: 'pointer' }}>
+                  Continuar →
+                </button>
               </div>
             )}
           </div>
@@ -401,33 +443,49 @@ export default function ReservarHabitacion() {
       })()}
 
       {/* ── PASO 2: Fechas y confirmación ── */}
-      {step === 2 && selected && (
+      {step === 2 && selected.length > 0 && (
         <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: isMobile ? '1.25rem' : '2rem' }}>
 
-          {/* Card habitación seleccionada */}
+          {/* Lista de habitaciones seleccionadas */}
           <div>
-            <p style={{ fontSize: '0.72rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#6B7280', marginBottom: '0.75rem' }}>Habitación seleccionada</p>
-            <div style={{ borderRadius: 18, overflow: 'hidden', border: '2px solid #F5922E', boxShadow: '0 0 0 4px rgba(245,146,46,0.12)' }}>
-              <div style={{ height: 200, background: selected.sede_imagen ? '#3D1A06' : (TIPO_GRADIENTS[selected.tipo] ?? TIPO_GRADIENTS.matrimonial), position: 'relative', overflow: 'hidden' }}>
-                {selected.sede_imagen && <img src={selected.sede_imagen} alt={selected.sede_nombre} style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={e => e.target.style.display = 'none'}/>}
-                <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top, rgba(0,0,0,0.5) 0%, transparent 50%)' }}/>
-                <div style={{ position: 'absolute', bottom: 16, left: 16 }}>
-                  <p style={{ color: 'white', fontWeight: 800, fontSize: '1.15rem', marginBottom: '0.2rem' }}>Habitación N° {selected.numero}</p>
-                  <p style={{ color: 'rgba(255,255,255,0.75)', fontSize: '0.8rem' }}>{selected.tipo_label}</p>
-                </div>
-              </div>
-              <div style={{ padding: '1.25rem', background: 'white' }}>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
-                  <Row icon={<MapPin size={14}/>} label="Sede" value={selected.sede_nombre}/>
-                  <Row icon={<Users size={14}/>} label="Capacidad" value={`${selected.capacidad} personas`}/>
-                  <Row icon={<BedDouble size={14}/>} label="Piso" value={`Piso ${selected.piso}`}/>
-                  {selected.tiene_vista && <Row icon={<Eye size={14}/>} label="Vista" value="Incluida"/>}
-                </div>
-                <div style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid #F3F4F6', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ fontSize: '0.8rem', color: '#6B7280' }}>Precio por noche</span>
-                  <span style={{ fontWeight: 800, fontSize: '1.25rem', color: '#F5922E' }}>S/ {selected.precio}</span>
-                </div>
-              </div>
+            <p style={{ fontSize: '0.72rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#6B7280', marginBottom: '0.75rem' }}>
+              {selected.length > 1 ? `${selected.length} habitaciones seleccionadas` : 'Habitación seleccionada'}
+            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+              {selected.map((hab, i) => {
+                const imgSrc = hab.imagen_principal ?? hab.sede_imagen
+                const grad   = imgSrc ? null : (TIPO_GRADIENTS[hab.tipo] ?? TIPO_GRADIENTS.matrimonial)
+                return (
+                  <div key={hab.id} style={{ borderRadius: 18, overflow: 'hidden', border: '2px solid #F5922E', boxShadow: '0 0 0 3px rgba(245,146,46,0.1)' }}>
+                    <div style={{ height: selected.length > 1 ? 100 : 200, background: imgSrc ? '#3D1A06' : grad, position: 'relative', overflow: 'hidden' }}>
+                      {imgSrc && <img src={imgSrc} alt={hab.sede_nombre} style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={e => e.target.style.display = 'none'}/>}
+                      <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top, rgba(0,0,0,0.55) 0%, transparent 55%)' }}/>
+                      {selected.length > 1 && (
+                        <div style={{ position: 'absolute', top: 8, left: 8, background: '#F5922E', color: 'white', fontWeight: 800, fontSize: '0.7rem', borderRadius: 9999, padding: '2px 8px' }}>
+                          #{i + 1}
+                        </div>
+                      )}
+                      <div style={{ position: 'absolute', bottom: 10, left: 14 }}>
+                        <p style={{ color: 'white', fontWeight: 800, fontSize: '0.95rem', margin: 0 }}>Habitación N° {hab.numero}</p>
+                        <p style={{ color: 'rgba(255,255,255,0.75)', fontSize: '0.72rem', margin: 0 }}>{hab.tipo_label} · {hab.sede_nombre}</p>
+                      </div>
+                      <div style={{ position: 'absolute', bottom: 10, right: 14, background: '#F5922E', color: 'white', borderRadius: 9999, padding: '3px 10px', fontWeight: 800, fontSize: '0.8rem' }}>
+                        S/ {hab.precio}/noche
+                      </div>
+                    </div>
+                    {selected.length === 1 && (
+                      <div style={{ padding: '1rem', background: 'white' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                          <Row icon={<MapPin size={14}/>} label="Sede" value={hab.sede_nombre}/>
+                          <Row icon={<Users size={14}/>} label="Capacidad" value={`${hab.capacidad} personas`}/>
+                          <Row icon={<BedDouble size={14}/>} label="Piso" value={`Piso ${hab.piso}`}/>
+                          {hab.tiene_vista && <Row icon={<Eye size={14}/>} label="Vista" value="Incluida"/>}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
             </div>
           </div>
 
@@ -437,9 +495,9 @@ export default function ReservarHabitacion() {
 
             <div style={{ background: 'white', borderRadius: 16, border: '1px solid #E5E7EB', padding: '1.25rem 1.35rem', display: 'flex', flexDirection: 'column', gap: '1.1rem' }}>
 
-              {/* Calendario dinámico */}
+              {/* Calendario — usa fechas_ocupadas de la primera hab seleccionada como referencia */}
               <CalendarioReserva
-                fechasOcupadas={selected.fechas_ocupadas ?? []}
+                fechasOcupadas={selected[0]?.fechas_ocupadas ?? []}
                 entrada={form.fecha_entrada}
                 salida={form.fecha_salida}
                 today={today}
@@ -448,20 +506,66 @@ export default function ReservarHabitacion() {
 
               <div>
                 <label style={lbl}><Users size={13}/> N° de huéspedes *</label>
-                <input type="number" min={1} max={selected.capacidad} value={form.num_huespedes}
+                <input type="number" min={1} max={selected.reduce((a, h) => a + h.capacidad, 0)} value={form.num_huespedes}
                   onChange={e => setForm(f => ({ ...f, num_huespedes: +e.target.value }))}
                   style={inp}/>
-                <p style={{ fontSize: '0.72rem', color: '#9CA3AF', marginTop: '0.25rem' }}>Máximo {selected.capacidad} personas</p>
+                <p style={{ fontSize: '0.72rem', color: '#9CA3AF', marginTop: '0.25rem' }}>
+                  Capacidad total: {selected.reduce((a, h) => a + h.capacidad, 0)} personas
+                </p>
+              </div>
+
+              {/* Huéspedes (opcional) */}
+              <div>
+                <button
+                  type="button"
+                  onClick={() => setMostrarHuespedes(v => !v)}
+                  style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: '1px dashed #D1D5DB', borderRadius: 9, padding: '0.5rem 0.85rem', fontSize: '0.78rem', fontWeight: 600, color: '#6B7280', cursor: 'pointer', width: '100%' }}>
+                  <Users size={13}/>
+                  {mostrarHuespedes ? '▲ Ocultar datos de huéspedes' : '+ Agregar datos de huéspedes (opcional)'}
+                </button>
+                {mostrarHuespedes && (
+                  <div style={{ marginTop: '0.75rem', display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+                    <p style={{ fontSize: '0.72rem', color: '#9CA3AF', margin: 0 }}>Se usarán para registrar en recepción. Puedes completarlos después.</p>
+                    {Array.from({ length: form.num_huespedes }, (_, i) => (
+                      <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: '0.5rem', alignItems: 'center' }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.4rem' }}>
+                          <input
+                            placeholder={`Huésped ${i + 1} — Nombre`}
+                            value={huespedes[i]?.nombre ?? ''}
+                            onChange={e => setHuespedes(prev => {
+                              const next = [...prev]
+                              next[i] = { ...next[i] ?? {}, nombre: e.target.value }
+                              return next
+                            })}
+                            style={{ ...inp, fontSize: '0.78rem', padding: '0.55rem 0.7rem' }}
+                          />
+                          <input
+                            placeholder="DNI (opcional)"
+                            value={huespedes[i]?.dni ?? ''}
+                            onChange={e => setHuespedes(prev => {
+                              const next = [...prev]
+                              next[i] = { ...next[i] ?? {}, dni: e.target.value }
+                              return next
+                            })}
+                            style={{ ...inp, fontSize: '0.78rem', padding: '0.55rem 0.7rem' }}
+                          />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
               {/* Resumen de precio */}
               {noches > 0 && (
                 <div style={{ background: '#FFF7ED', border: '1px solid rgba(245,146,46,0.3)', borderRadius: 12, padding: '1rem 1.25rem' }}>
                   <p style={{ fontSize: '0.78rem', fontWeight: 700, color: '#92400E', marginBottom: '0.6rem' }}>Resumen</p>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.82rem', color: '#6B7280', marginBottom: '0.35rem' }}>
-                    <span>S/ {selected.precio} × {noches} noche{noches > 1 ? 's' : ''}</span>
-                    <span>S/ {selected.precio * noches}</span>
-                  </div>
+                  {selected.map(h => (
+                    <div key={h.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', color: '#6B7280', marginBottom: '0.3rem' }}>
+                      <span>Hab. {h.numero} × {noches} noche{noches > 1 ? 's' : ''}</span>
+                      <span>S/ {h.precio * noches}</span>
+                    </div>
+                  ))}
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 800, fontSize: '1.1rem', color: '#3D1A06', paddingTop: '0.5rem', borderTop: '1px solid rgba(245,146,46,0.2)' }}>
                     <span>Total</span>
                     <span style={{ color: '#F5922E' }}>S/ {total}</span>

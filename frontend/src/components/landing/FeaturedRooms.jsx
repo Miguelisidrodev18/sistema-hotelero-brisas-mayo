@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { Users, Eye, BedDouble } from 'lucide-react'
+import { Users, Eye, BedDouble, ChevronLeft, ChevronRight } from 'lucide-react'
 import RevealSection from '../ui/RevealSection'
 import { habitacionesApi } from '../../api/habitaciones'
 import { useAuth } from '../../context/AuthContext'
@@ -12,6 +12,68 @@ const TIPO_GRADIENTS = {
   matrimonial_adicional: 'linear-gradient(135deg, #b45309 0%, #78350f 100%)',
   doble:                 'linear-gradient(135deg, #1e40af 0%, #1e3a8a 100%)',
   triple:                'linear-gradient(135deg, #5b21b6 0%, #3b0764 100%)',
+}
+
+function RoomCard({ hab, fotos, onReservar }) {
+  const [idx, setIdx] = useState(0)
+  const imgSrc  = fotos.length > 0 ? fotos[idx] : null
+  const gradient = imgSrc ? null : (TIPO_GRADIENTS[hab.tipo] ?? TIPO_GRADIENTS.matrimonial)
+
+  return (
+    <article className="card-hover" style={{ borderRadius: 20, overflow: 'hidden', border: '1px solid rgba(0,0,0,0.05)', boxShadow: '0 4px 24px rgba(61,26,6,0.06)', background: 'white' }}>
+      <div style={{ position: 'relative', height: 210, background: imgSrc ? '#3D1A06' : gradient, overflow: 'hidden' }}>
+        {imgSrc && <img src={imgSrc} alt={hab.sede_nombre} style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={e => e.target.style.display = 'none'}/>}
+        <div style={{ position: 'absolute', inset: 0, opacity: 0.2, background: 'radial-gradient(circle at 70% 30%, rgba(255,255,255,.5) 0%, transparent 60%)' }}/>
+        <span style={{ position: 'absolute', top: 16, left: 16, background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)', color: 'white', fontSize: '0.65rem', fontWeight: 700, padding: '5px 14px', borderRadius: 9999 }}>
+          {hab.tipo_label}
+        </span>
+        <div style={{ position: 'absolute', bottom: 16, left: 16, color: 'rgba(255,255,255,0.8)', fontSize: '0.7rem', background: 'rgba(0,0,0,0.25)', padding: '4px 10px', borderRadius: 9999, backdropFilter: 'blur(4px)' }}>
+          {hab.sede_nombre}
+        </div>
+        {fotos.length > 1 && (
+          <>
+            <button onClick={e => { e.stopPropagation(); setIdx(i => (i - 1 + fotos.length) % fotos.length) }}
+              style={{ position: 'absolute', left: 8, top: '50%', transform: 'translateY(-50%)', background: 'rgba(0,0,0,0.4)', border: 'none', borderRadius: '50%', width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'white' }}>
+              <ChevronLeft size={14}/>
+            </button>
+            <button onClick={e => { e.stopPropagation(); setIdx(i => (i + 1) % fotos.length) }}
+              style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', background: 'rgba(0,0,0,0.4)', border: 'none', borderRadius: '50%', width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'white' }}>
+              <ChevronRight size={14}/>
+            </button>
+            <div style={{ position: 'absolute', bottom: 8, right: '50%', transform: 'translateX(50%)', display: 'flex', gap: 4 }}>
+              {fotos.map((_, i) => <span key={i} style={{ width: 5, height: 5, borderRadius: '50%', background: i === idx ? 'white' : 'rgba(255,255,255,0.45)', display: 'inline-block' }}/>)}
+            </div>
+          </>
+        )}
+      </div>
+
+      <div style={{ padding: 24 }}>
+        <h3 style={{ fontWeight: 700, color: '#3D1A06', fontSize: '1.1rem', marginBottom: 4 }}>
+          Habitación N° {hab.numero}
+        </h3>
+        <p style={{ color: '#9ca3af', fontSize: '0.8rem', marginBottom: 16 }}>
+          {hab.sede_ciudad} · Piso {hab.piso}
+        </p>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16, fontSize: '0.8rem', color: '#6b7280', marginBottom: 20, paddingBottom: 16, borderBottom: '1px solid rgba(0,0,0,0.05)' }}>
+          <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}><Users size={13}/> {hab.capacidad} pers.</span>
+          {hab.tiene_vista && <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}><Eye size={13}/> Vista</span>}
+          <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}><BedDouble size={13}/></span>
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div>
+            <span style={{ fontSize: '1.5rem', fontWeight: 800, color: '#3D1A06' }}>S/ {hab.precio}</span>
+            <span style={{ color: '#9ca3af', fontSize: '0.7rem', marginLeft: 4 }}>/noche</span>
+          </div>
+          <button onClick={() => onReservar(hab)} className="btn-glow"
+            style={{ background: 'linear-gradient(135deg, #F5922E, #E07820)', color: 'white', fontSize: '0.8rem', fontWeight: 700, padding: '10px 20px', borderRadius: 14, border: 'none', cursor: 'pointer' }}>
+            Reservar
+          </button>
+        </div>
+      </div>
+    </article>
+  )
 }
 
 export default function FeaturedRooms() {
@@ -75,49 +137,15 @@ export default function FeaturedRooms() {
           gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 300px), 1fr))',
           gap: 28,
         }}>
-          {rooms.map((hab, i) => (
+          {rooms.map((hab, i) => {
+            const fotos   = hab.imagenes?.length > 0 ? hab.imagenes : (hab.sede_imagen ? [hab.sede_imagen] : [])
+            return (
             <RevealSection key={hab.id} direction="scale" style={{ transitionDelay: `${i * 0.12}s` }}>
-              <article className="card-hover" style={{ borderRadius: 20, overflow: 'hidden', border: '1px solid rgba(0,0,0,0.05)', boxShadow: '0 4px 24px rgba(61,26,6,0.06)', background: 'white' }}>
-
-                <div style={{ position: 'relative', height: 210, background: hab.sede_imagen ? '#3D1A06' : (TIPO_GRADIENTS[hab.tipo] ?? TIPO_GRADIENTS.matrimonial), overflow: 'hidden' }}>
-                  {hab.sede_imagen && <img src={hab.sede_imagen} alt={hab.sede_nombre} style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={e => e.target.style.display = 'none'}/>}
-                  <div style={{ position: 'absolute', inset: 0, opacity: 0.2, background: 'radial-gradient(circle at 70% 30%, rgba(255,255,255,.5) 0%, transparent 60%)' }}/>
-                  <span style={{ position: 'absolute', top: 16, left: 16, background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)', color: 'white', fontSize: '0.65rem', fontWeight: 700, padding: '5px 14px', borderRadius: 9999 }}>
-                    {hab.tipo_label}
-                  </span>
-                  <div style={{ position: 'absolute', bottom: 16, left: 16, color: 'rgba(255,255,255,0.8)', fontSize: '0.7rem', background: 'rgba(0,0,0,0.25)', padding: '4px 10px', borderRadius: 9999, backdropFilter: 'blur(4px)' }}>
-                    {hab.sede_nombre}
-                  </div>
-                </div>
-
-                <div style={{ padding: 24 }}>
-                  <h3 style={{ fontWeight: 700, color: '#3D1A06', fontSize: '1.1rem', marginBottom: 4 }}>
-                    Habitación N° {hab.numero}
-                  </h3>
-                  <p style={{ color: '#9ca3af', fontSize: '0.8rem', marginBottom: 16 }}>
-                    {hab.sede_ciudad} · Piso {hab.piso}
-                  </p>
-
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 16, fontSize: '0.8rem', color: '#6b7280', marginBottom: 20, paddingBottom: 16, borderBottom: '1px solid rgba(0,0,0,0.05)' }}>
-                    <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}><Users size={13}/> {hab.capacidad} pers.</span>
-                    {hab.tiene_vista && <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}><Eye size={13}/> Vista</span>}
-                    <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}><BedDouble size={13}/></span>
-                  </div>
-
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <div>
-                      <span style={{ fontSize: '1.5rem', fontWeight: 800, color: '#3D1A06' }}>S/ {hab.precio}</span>
-                      <span style={{ color: '#9ca3af', fontSize: '0.7rem', marginLeft: 4 }}>/noche</span>
-                    </div>
-                    <button onClick={() => handleReservar(hab)} className="btn-glow"
-                      style={{ background: 'linear-gradient(135deg, #F5922E, #E07820)', color: 'white', fontSize: '0.8rem', fontWeight: 700, padding: '10px 20px', borderRadius: 14, border: 'none', cursor: 'pointer' }}>
-                      Reservar
-                    </button>
-                  </div>
-                </div>
-              </article>
+              <RoomCard hab={hab} fotos={fotos} onReservar={handleReservar}/>
             </RevealSection>
-          ))}
+            )
+          })}
+
         </div>
 
         <RevealSection style={{ textAlign: 'center', marginTop: 48 }}>

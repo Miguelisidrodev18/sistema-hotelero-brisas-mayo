@@ -49,54 +49,32 @@ const HR = () => <div style={{ borderTop: '1px dashed #AAAAAA', margin: '7px 0' 
 
 /* ── Función de impresión (igual que ReciboPago) ── */
 function imprimir() {
-  const wrapper = document.querySelector('.tp-wrapper')
-  const banner  = document.querySelector('.tp-noprint')
-  const ticket  = document.querySelector('.tp-ticket')
-
-  // Guardar estilos originales
-  const wOrig = wrapper ? wrapper.getAttribute('style') : null
-
-  // Aplicar estilos de impresión directamente en el DOM (máxima prioridad)
-  if (wrapper) {
-    wrapper.style.minHeight  = '0'
-    wrapper.style.padding    = '0'
-    wrapper.style.background = 'white'
-  }
-  if (banner) banner.style.display = 'none'
-  if (ticket) {
-    ticket.style.boxShadow   = 'none'
-    ticket.style.borderRadius = '0'
-    ticket.style.margin      = '0'
-    ticket.style.maxWidth    = '100%'
-    ticket.style.width       = '100%'
-  }
-
-  // Solo inyectar tamaño de página (lo demás ya está en el DOM)
   const prev = document.getElementById('__tps__')
   if (prev) prev.remove()
   const s = document.createElement('style')
   s.id = '__tps__'
-  s.textContent = `@media print { @page { size: 80mm auto; margin: 2mm; } }`
+  // Técnica visibility: oculta todo el body, muestra solo el ticket
+  // Funciona independientemente de la estructura del DOM y de estilos inline
+  s.textContent = `
+    @media print {
+      @page { size: 80mm auto; margin: 2mm; }
+      body * { visibility: hidden !important; }
+      .tp-ticket, .tp-ticket * { visibility: visible !important; }
+      .tp-ticket {
+        position: fixed !important;
+        top: 0 !important; left: 0 !important;
+        width: 76mm !important;
+        margin: 0 !important;
+        padding: 4px !important;
+        box-shadow: none !important;
+        border-radius: 0 !important;
+        background: white !important;
+      }
+    }
+  `
   document.head.appendChild(s)
-
   window.print()
-
-  // Restaurar todo después de imprimir
-  window.addEventListener('afterprint', () => {
-    s.remove()
-    if (wrapper) {
-      if (wOrig !== null) wrapper.setAttribute('style', wOrig)
-      else wrapper.removeAttribute('style')
-    }
-    if (banner) banner.style.display = ''
-    if (ticket) {
-      ticket.style.boxShadow    = ''
-      ticket.style.borderRadius = ''
-      ticket.style.margin       = ''
-      ticket.style.maxWidth     = ''
-      ticket.style.width        = ''
-    }
-  }, { once: true })
+  window.addEventListener('afterprint', () => s.remove(), { once: true })
 }
 
 /* ══════════════════════════════════════════════════ */
@@ -189,6 +167,9 @@ export default function TicketCheckin() {
           <div style={{ fontSize: '9px', color: '#555', marginTop: 2 }}>Codigo de reserva:</div>
           <div style={{ margin: '4px auto 0', display: 'inline-block', border: '1.5px dashed #555', borderRadius: 3, padding: '3px 16px', fontWeight: 900, fontSize: '16px', letterSpacing: '0.1em' }}>
             {reserva.codigo}
+          </div>
+          <div style={{ fontSize: '9px', color: '#888', marginTop: 4 }}>
+            {'Emision: ' + new Date().toLocaleDateString('es-PE', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
           </div>
         </div>
 

@@ -11,7 +11,7 @@ class HabitacionController extends Controller
 {
     public function index(Request $request): JsonResponse
     {
-        $query = Habitacion::with('sede')
+        $query = Habitacion::with(['sede', 'imagenes'])
             ->when($request->sede_id,  fn($q, $v) => $q->where('sede_id', $v))
             ->when($request->estado,   fn($q, $v) => $q->where('estado', $v))
             ->when($request->piso,     fn($q, $v) => $q->where('piso', $v))
@@ -31,6 +31,7 @@ class HabitacionController extends Controller
             'sede_id'      => $h->sede_id,
             'sede_nombre'  => $h->sede->nombre,
             'sede_slug'    => $h->sede->slug,
+            'imagenes'     => $h->imagenes->map(fn($i) => ['id' => $i->id, 'url' => $i->url, 'orden' => $i->orden]),
         ]));
     }
 
@@ -59,7 +60,7 @@ class HabitacionController extends Controller
     // Endpoint público — no requiere auth
     public function disponibles(Request $request): JsonResponse
     {
-        $query = Habitacion::with('sede:id,nombre,slug,ciudad,descripcion,vista_principal')
+        $query = Habitacion::with(['sede:id,nombre,slug,ciudad,descripcion,vista_principal', 'imagenes'])
             ->whereNotIn('estado', ['mantenimiento'])  // solo ocultar mantenimiento
             ->whereHas('sede', fn($q) => $q->where('activo', true));
 
@@ -81,22 +82,24 @@ class HabitacionController extends Controller
             ->groupBy('habitacion_id');
 
         return response()->json($habitaciones->map(fn($h) => [
-            'id'              => $h->id,
-            'numero'          => $h->numero,
-            'tipo'            => $h->tipo,
-            'tipo_label'      => $h->tipoLabel(),
-            'capacidad'       => $h->capacidad,
-            'precio'          => $h->precio,
-            'piso'            => $h->piso,
-            'tiene_vista'     => $h->tiene_vista,
-            'descripcion'     => $h->descripcion,
-            'estado'          => $h->estado,
-            'sede_id'         => $h->sede_id,
-            'sede_nombre'     => $h->sede->nombre,
-            'sede_slug'       => $h->sede->slug,
-            'sede_ciudad'     => $h->sede->ciudad,
-            'sede_imagen'     => $h->sede->vista_principal,
-            'fechas_ocupadas' => ($reservasAgrupadas[$h->id] ?? collect())->map(fn($r) => [
+            'id'               => $h->id,
+            'numero'           => $h->numero,
+            'tipo'             => $h->tipo,
+            'tipo_label'       => $h->tipoLabel(),
+            'capacidad'        => $h->capacidad,
+            'precio'           => $h->precio,
+            'piso'             => $h->piso,
+            'tiene_vista'      => $h->tiene_vista,
+            'descripcion'      => $h->descripcion,
+            'estado'           => $h->estado,
+            'sede_id'          => $h->sede_id,
+            'sede_nombre'      => $h->sede->nombre,
+            'sede_slug'        => $h->sede->slug,
+            'sede_ciudad'      => $h->sede->ciudad,
+            'sede_imagen'      => $h->sede->vista_principal,
+            'imagen_principal' => $h->imagenes->first()?->url,
+            'imagenes'         => $h->imagenes->map(fn($i) => $i->url)->values(),
+            'fechas_ocupadas'  => ($reservasAgrupadas[$h->id] ?? collect())->map(fn($r) => [
                 'entrada' => $r->fecha_entrada->toDateString(),
                 'salida'  => $r->fecha_salida->toDateString(),
             ])->values(),

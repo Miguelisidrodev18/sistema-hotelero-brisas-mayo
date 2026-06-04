@@ -176,8 +176,9 @@ class PagoController extends Controller
                 'cliente:id,name,email,telefono,dni',
                 'habitacion:id,numero,tipo,piso',
                 'sede:id,nombre',
-                'pagos'           => fn ($q) => $q->whereIn('estado', ['verificado','pendiente'])->orderBy('created_at'),
+                'pagos'     => fn ($q) => $q->whereIn('estado', ['verificado','pendiente'])->orderBy('created_at'),
                 'servicios.servicio:id,nombre',
+                'huespedes',
             ])
             ->firstOrFail();
 
