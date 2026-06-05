@@ -576,11 +576,11 @@ export default function MisReservas() {
                 <div style={{ display: 'flex', gap: '1rem', marginBottom: '0.75rem' }}>
                   <div>
                     <div style={{ fontSize: '0.68rem', color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Entrada</div>
-                    <div style={{ fontSize: '0.8rem', fontWeight: 600 }}>{new Date(r.fecha_entrada).toLocaleDateString('es-PE')}</div>
+                    <div style={{ fontSize: '0.8rem', fontWeight: 600 }}>{new Date((r.fecha_entrada||'').slice(0,10)+'T12:00:00').toLocaleDateString('es-PE')}</div>
                   </div>
                   <div>
                     <div style={{ fontSize: '0.68rem', color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Salida</div>
-                    <div style={{ fontSize: '0.8rem', fontWeight: 600 }}>{new Date(r.fecha_salida).toLocaleDateString('es-PE')}</div>
+                    <div style={{ fontSize: '0.8rem', fontWeight: 600 }}>{new Date((r.fecha_salida||'').slice(0,10)+'T12:00:00').toLocaleDateString('es-PE')}</div>
                   </div>
                   <div>
                     <div style={{ fontSize: '0.68rem', color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Noches</div>
@@ -654,8 +654,8 @@ export default function MisReservas() {
                       <div style={{ fontSize: '0.78rem', color: '#9CA3AF' }}>Hab. {r.habitacion?.numero} — {r.habitacion?.tipo?.replace(/_/g,' ')}</div>
                     </td>
                     <td style={cell}>
-                      <div style={{ fontSize: '0.82rem' }}>{new Date(r.fecha_entrada).toLocaleDateString('es-PE')}</div>
-                      <div style={{ fontSize: '0.78rem', color: '#9CA3AF' }}>→ {new Date(r.fecha_salida).toLocaleDateString('es-PE')}</div>
+                      <div style={{ fontSize: '0.82rem' }}>{new Date((r.fecha_entrada||'').slice(0,10)+'T12:00:00').toLocaleDateString('es-PE')}</div>
+                      <div style={{ fontSize: '0.78rem', color: '#9CA3AF' }}>→ {new Date((r.fecha_salida||'').slice(0,10)+'T12:00:00').toLocaleDateString('es-PE')}</div>
                     </td>
                     <td style={{ ...cell, textAlign: 'center' }}>{noches}</td>
                     <td style={cell}>

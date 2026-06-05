@@ -3,14 +3,20 @@ import { useParams, useSearchParams } from 'react-router-dom'
 import { Printer } from 'lucide-react'
 import axiosClient from '../../api/axiosClient'
 
+function parseDate(d) {
+  if (!d) return null
+  if (typeof d === 'string') return new Date(d.slice(0, 10) + 'T12:00:00')
+  return d
+}
+
 function fDate(d) {
   if (!d) return '—'
-  return new Date(d).toLocaleDateString('es-PE', { day: '2-digit', month: '2-digit', year: 'numeric' })
+  return parseDate(d).toLocaleDateString('es-PE', { day: '2-digit', month: '2-digit', year: 'numeric' })
 }
 
 function fDateLong(d) {
   if (!d) return '—'
-  return new Date(d).toLocaleDateString('es-PE', { day: '2-digit', month: 'short', year: 'numeric' })
+  return parseDate(d).toLocaleDateString('es-PE', { day: '2-digit', month: 'short', year: 'numeric' })
 }
 
 function noches(entrada, salida) {

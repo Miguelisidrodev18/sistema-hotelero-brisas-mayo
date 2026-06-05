@@ -1824,8 +1824,8 @@ export default function ReservasRecepcion() {
                     <div style={{ fontWeight: 500 }}>{r.sede?.nombre}</div>
                     <div style={{ fontSize: '0.75rem', color: '#9CA3AF' }}>Hab. {r.habitacion?.numero}</div>
                   </td>
-                  <td style={cell}>{new Date(r.fecha_entrada).toLocaleDateString('es-PE')}</td>
-                  <td style={cell}>{new Date(r.fecha_salida).toLocaleDateString('es-PE')}</td>
+                  <td style={cell}>{new Date((r.fecha_entrada||'').slice(0,10)+'T12:00:00').toLocaleDateString('es-PE')}</td>
+                  <td style={cell}>{new Date((r.fecha_salida||'').slice(0,10)+'T12:00:00').toLocaleDateString('es-PE')}</td>
                   <td style={{ ...cell, textAlign: 'center' }}>{noches}</td>
                   <td style={cell}><b>S/ {r.precio_total}</b></td>
                   <td style={cell}><EstadoBadge estado={r.estado}/></td>
