@@ -58,12 +58,14 @@ function imprimir() {
   s.textContent = `
     @media print {
       @page { size: 80mm auto; margin: 2mm; }
-      body * { visibility: hidden !important; }
-      .tp-ticket, .tp-ticket * { visibility: visible !important; }
+      .tp-noprint { display: none !important; }
+      .tp-wrapper {
+        background: white !important;
+        padding: 0 !important;
+        min-height: unset !important;
+      }
       .tp-ticket {
-        position: fixed !important;
-        top: 0 !important; left: 0 !important;
-        width: 76mm !important;
+        max-width: 76mm !important;
         margin: 0 !important;
         padding: 4px !important;
         box-shadow: none !important;

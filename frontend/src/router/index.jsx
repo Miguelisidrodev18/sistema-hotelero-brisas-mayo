@@ -22,6 +22,7 @@ import Usuarios          from '../pages/admin/Usuarios'
 import Sedes             from '../pages/admin/Sedes'
 import Servicios         from '../pages/admin/Servicios'
 import TarifasTemporada  from '../pages/admin/TarifasTemporada'
+import CodigosDescuento  from '../pages/admin/CodigosDescuento'
 
 // Recepcion pages
 import ReservasRecepcion from '../pages/recepcion/Reservas'
@@ -117,6 +118,7 @@ export default function AppRouter() {
             <Route path="usuarios"        element={<Usuarios />} />
             <Route path="servicios"       element={<Servicios />} />
             <Route path="tarifas"         element={<TarifasTemporada />} />
+            <Route path="descuentos"      element={<CodigosDescuento />} />
             <Route path="platos"          element={<Platos />} />
           </Route>
 

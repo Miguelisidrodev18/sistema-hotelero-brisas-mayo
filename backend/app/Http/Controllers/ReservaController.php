@@ -62,6 +62,7 @@ class ReservaController extends Controller
             'origen'               => 'nullable|in:online,presencial,llamada',
             'descuento_porcentaje' => 'nullable|numeric|min:0|max:100',
             'descuento_motivo'     => 'nullable|string|max:255',
+            'codigo_descuento'     => 'nullable|string|max:20',
             'pago_metodo'          => 'nullable|in:efectivo,transferencia,yape,plin,tarjeta',
             'pago_tipo'            => 'nullable|in:adelanto,total',
             'pago_referencia'      => 'nullable|string|max:100',
@@ -94,7 +95,20 @@ class ReservaController extends Controller
             $origen = 'presencial';
         }
 
-        $reservasCreadas = DB::transaction(function () use ($data, $habitacionIds, $habitaciones, $noches, $clienteId, $origen, $authUser) {
+        // Validar código de descuento antes de iniciar la transacción
+        $codigoDescuentoId = null;
+        if (!empty($data['descuento_porcentaje']) && in_array($authUser->role, ['administrador','recepcionista'])) {
+            if (empty($data['codigo_descuento'])) {
+                return response()->json(['message' => 'Se requiere un código de autorización para aplicar descuento.'], 422);
+            }
+            $codigoObj = \App\Models\CodigoDescuento::where('codigo', strtoupper(trim($data['codigo_descuento'])))->first();
+            if (!$codigoObj || !$codigoObj->isValido()) {
+                return response()->json(['message' => 'Código de autorización inválido, inactivo o vencido.'], 422);
+            }
+            $codigoDescuentoId = $codigoObj->id;
+        }
+
+        $reservasCreadas = DB::transaction(function () use ($data, $habitacionIds, $habitaciones, $noches, $clienteId, $origen, $authUser, $codigoDescuentoId) {
             $creadas   = [];
             $grupoId   = null;
 
@@ -112,7 +126,7 @@ class ReservaController extends Controller
 
                 $descuentoPct = null;
                 $precioTotal  = $precioOriginal;
-                if (!empty($data['descuento_porcentaje']) && in_array($authUser->role, ['administrador','recepcionista'])) {
+                if ($codigoDescuentoId && !empty($data['descuento_porcentaje'])) {
                     $descuentoPct = (float) $data['descuento_porcentaje'];
                     $precioTotal  = round($precioOriginal * (1 - $descuentoPct / 100), 2);
                 }
@@ -131,6 +145,7 @@ class ReservaController extends Controller
                     'precio_original'      => $descuentoPct ? $precioOriginal : null,
                     'descuento_porcentaje' => $descuentoPct,
                     'descuento_motivo'     => $data['descuento_motivo'] ?? null,
+                    'codigo_descuento_id'  => $codigoDescuentoId,
                     'origen'               => $origen,
                     'estado'               => 'pendiente',
                     'codigo'               => strtoupper(Str::random(8)),

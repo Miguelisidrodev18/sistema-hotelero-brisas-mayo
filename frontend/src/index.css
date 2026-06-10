@@ -463,5 +463,6 @@ body {
 
 @media print {
   body > * { display: none !important; }
+  #root { display: block !important; }
   #thermal-ticket { display: block !important; }
 }

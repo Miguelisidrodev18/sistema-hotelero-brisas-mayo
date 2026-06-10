@@ -4,7 +4,7 @@ import { NavLink, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard, BedDouble, Building2, Users, Settings,
   CalendarDays, BarChart3, DollarSign, UserCircle, ChevronLeft, ChevronRight,
-  X, LogOut, CreditCard, Car, Coffee, Tag, Wallet, ChefHat, UtensilsCrossed,
+  X, LogOut, CreditCard, Car, Coffee, Tag, Wallet, ChefHat, UtensilsCrossed, BadgePercent,
 } from 'lucide-react'
 
 const NAV = {
@@ -17,6 +17,7 @@ const NAV = {
     { icon: Car,             label: 'Cocheras',      to: '/admin/cocheras' },
     { icon: Coffee,          label: 'Servicios',     to: '/admin/servicios' },
     { icon: Tag,             label: 'Tarifas',       to: '/admin/tarifas' },
+    { icon: BadgePercent,    label: 'Descuentos',    to: '/admin/descuentos' },
     { icon: UtensilsCrossed, label: 'Platos',        to: '/admin/platos' },
     { icon: ChefHat,         label: 'Cocina',        to: '/cocina' },
     { icon: Users,           label: 'Usuarios',      to: '/admin/usuarios' },

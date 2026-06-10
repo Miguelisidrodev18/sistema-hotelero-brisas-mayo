@@ -14,7 +14,7 @@ class Reserva extends Model
         'user_id', 'habitacion_id', 'sede_id', 'created_by',
         'fecha_entrada', 'fecha_salida', 'hora_checkin', 'hora_checkout', 'num_huespedes',
         'precio_noche', 'precio_total', 'precio_original',
-        'descuento_porcentaje', 'descuento_motivo',
+        'descuento_porcentaje', 'descuento_motivo', 'codigo_descuento_id',
         'origen', 'estado', 'codigo', 'notas',
     ];
 
@@ -59,6 +59,11 @@ class Reserva extends Model
     public function huespedes(): HasMany
     {
         return $this->hasMany(ReservaHuesped::class);
+    }
+
+    public function codigoDescuento(): BelongsTo
+    {
+        return $this->belongsTo(CodigoDescuento::class);
     }
 
     public function getNochesAttribute(): int

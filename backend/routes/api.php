@@ -18,6 +18,7 @@ use App\Http\Controllers\ReservaController;
 use App\Http\Controllers\ServicioController;
 use App\Http\Controllers\SedeController;
 use App\Http\Controllers\StatsController;
+use App\Http\Controllers\CodigoDescuentoController;
 use App\Http\Controllers\TarifaTemporadaController;
 use App\Http\Controllers\UsuarioController;
 use Illuminate\Support\Facades\Route;
@@ -114,6 +115,11 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Servicios catálogo (lectura para staff)
     Route::get   ('/servicios',                       [ServicioController::class, 'index']);
+
+    // Validar código de descuento (staff)
+    Route::middleware('role:administrador,recepcionista')->group(function () {
+        Route::post('/codigos-descuento/validar', [CodigoDescuentoController::class, 'validar']);
+    });
 
     // Recepción — panel del día, caja diaria y búsqueda de clientes
     Route::middleware('role:administrador,recepcionista')->group(function () {
@@ -238,6 +244,13 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post  ('/servicios',             [ServicioController::class, 'store']);
         Route::put   ('/servicios/{servicio}',  [ServicioController::class, 'update']);
         Route::delete('/servicios/{servicio}',  [ServicioController::class, 'destroy']);
+
+        // Códigos de descuento CRUD
+        Route::get   ('/codigos-descuento',                                 [CodigoDescuentoController::class, 'index']);
+        Route::post  ('/codigos-descuento',                                 [CodigoDescuentoController::class, 'store']);
+        Route::patch ('/codigos-descuento/{codigoDescuento}/toggle',        [CodigoDescuentoController::class, 'toggleActivo']);
+        Route::delete('/codigos-descuento/{codigoDescuento}',               [CodigoDescuentoController::class, 'destroy']);
+        Route::get   ('/codigos-descuento/{codigoDescuento}/reservas',      [CodigoDescuentoController::class, 'reservasDeCodigo']);
 
         // Tarifas por temporada CRUD
         Route::get   ('/tarifas-temporada',                          [TarifaTemporadaController::class, 'index']);

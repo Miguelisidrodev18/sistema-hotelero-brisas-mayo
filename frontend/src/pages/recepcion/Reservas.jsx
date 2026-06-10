@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { QrCode, X, Search, CheckCircle, ArrowRight, User, BedDouble, Calendar, MapPin, FileDown, Keyboard, Camera, CreditCard, Car, AlertCircle, Printer, Receipt } from 'lucide-react'
 import { reservasApi } from '../../api/reservas'
+import { codigosDescuentoApi } from '../../api/codigosDescuento'
 import { pagosApi } from '../../api/pagos'
 import { cocherasApi } from '../../api/cocheras'
 import { serviciosApi } from '../../api/servicios'
@@ -183,6 +184,12 @@ function ModalNuevaReserva({ onClose, onCreada }) {
   const [saving, setSaving] = useState(false)
   const [error, setError]   = useState('')
 
+  // Estados para validación del código de descuento
+  const [codigoAuth, setCodigoAuth]           = useState('')
+  const [codigoValido, setCodigoValido]       = useState(null)   // null | true | false
+  const [codigoInfo, setCodigoInfo]           = useState(null)   // { descripcion, vence, mensaje }
+  const [codigoValidando, setCodigoValidando] = useState(false)
+
   const today   = new Date().toISOString().split('T')[0]
   const noches  = form.fecha_entrada && form.fecha_salida
     ? Math.ceil((new Date(form.fecha_salida) - new Date(form.fecha_entrada)) / 86400000) : 0
@@ -194,6 +201,26 @@ function ModalNuevaReserva({ onClose, onCreada }) {
 
   const inp = { border:'1.5px solid #E5E7EB', borderRadius:10, padding:'0.6rem 0.85rem', fontSize:'0.875rem', outline:'none', width:'100%', boxSizing:'border-box' }
   const lbl = { display:'block', fontSize:'0.75rem', fontWeight:600, color:'#374151', marginBottom:'0.3rem' }
+
+  // Validar código de descuento en tiempo real
+  useEffect(() => {
+    if (!form.descuento || !codigoAuth.trim()) {
+      setCodigoValido(null); setCodigoInfo(null); return
+    }
+    if (codigoAuth.length < 4) { setCodigoValido(null); setCodigoInfo(null); return }
+    const t = setTimeout(async () => {
+      setCodigoValidando(true)
+      try {
+        const { data } = await codigosDescuentoApi.validar(codigoAuth)
+        setCodigoValido(data.valido)
+        setCodigoInfo(data.valido
+          ? { descripcion: data.descripcion, vence: data.vence }
+          : { mensaje: data.mensaje })
+      } catch { setCodigoValido(false); setCodigoInfo({ mensaje: 'Error de conexión.' }) }
+      finally { setCodigoValidando(false) }
+    }, 350)
+    return () => clearTimeout(t)
+  }, [codigoAuth, form.descuento])
 
   // Buscar clientes
   useEffect(() => {
@@ -284,8 +311,9 @@ function ModalNuevaReserva({ onClose, onCreada }) {
         num_huespedes: form.num_huespedes,
         origen:        form.origen,
         notas:         form.notas || undefined,
-        descuento_porcentaje: form.descuento && form.descuento_pct ? form.descuento_pct : undefined,
+        descuento_porcentaje: form.descuento && form.descuento_pct && codigoValido ? form.descuento_pct : undefined,
         descuento_motivo:     form.descuento && form.descuento_motivo ? form.descuento_motivo : undefined,
+        codigo_descuento:     form.descuento && codigoValido ? codigoAuth.toUpperCase() : undefined,
         pago_metodo:   form.pago_ahora ? form.pago_metodo : undefined,
         pago_tipo:     form.pago_ahora ? form.pago_tipo   : undefined,
         pago_referencia: form.pago_ref || undefined,
@@ -634,26 +662,60 @@ function ModalNuevaReserva({ onClose, onCreada }) {
               </div>
 
               {/* Descuento */}
-              <div style={{ border:'1.5px solid #E5E7EB', borderRadius:12, padding:'0.85rem 1rem' }}>
+              <div style={{ border:`1.5px solid ${form.descuento ? '#FDE68A' : '#E5E7EB'}`, borderRadius:12, padding:'0.85rem 1rem', background: form.descuento ? '#FFFBEB' : 'white' }}>
                 <label style={{ display:'flex', alignItems:'center', gap:8, cursor:'pointer', marginBottom: form.descuento ? '0.75rem' : 0 }}>
-                  <input type="checkbox" checked={form.descuento} onChange={e => setForm(f => ({...f, descuento:e.target.checked}))}/>
+                  <input type="checkbox" checked={form.descuento} onChange={e => {
+                    setForm(f => ({...f, descuento:e.target.checked, descuento_pct:'', descuento_motivo:''}))
+                    if (!e.target.checked) { setCodigoAuth(''); setCodigoValido(null); setCodigoInfo(null) }
+                  }}/>
                   <span style={{ fontWeight:600, fontSize:'0.85rem', color:'#374151' }}>🏷️ Aplicar descuento autorizado</span>
                 </label>
                 {form.descuento && (
-                  <div style={{ display:'flex', flexDirection:'column', gap:'0.6rem' }}>
-                    <div style={{ display:'grid', gridTemplateColumns:'120px 1fr', gap:'0.65rem' }}>
-                      <div>
-                        <label style={lbl}>Porcentaje %</label>
-                        <input type="number" min={1} max={100} style={inp} placeholder="Ej: 10"
-                          value={form.descuento_pct} onChange={e => setForm(f => ({...f, descuento_pct:e.target.value}))}/>
+                  <div style={{ display:'flex', flexDirection:'column', gap:'0.75rem' }}>
+                    {/* Campo código de autorización */}
+                    <div>
+                      <label style={lbl}>Código de autorización *</label>
+                      <div style={{ position:'relative' }}>
+                        <input
+                          style={{ ...inp, textTransform:'uppercase', letterSpacing:'0.06em', fontWeight:700, fontFamily:'monospace', paddingRight:'2.2rem',
+                            borderColor: codigoValido === true ? '#16A34A' : codigoValido === false ? '#DC2626' : '#E5E7EB' }}
+                          placeholder="Ej: AUTH-XK92"
+                          value={codigoAuth}
+                          onChange={e => { setCodigoAuth(e.target.value.toUpperCase().replace(/[^A-Z0-9\-]/g,'')); setCodigoValido(null); setCodigoInfo(null) }}
+                          maxLength={20}
+                        />
+                        <div style={{ position:'absolute', right:'0.6rem', top:'50%', transform:'translateY(-50%)', fontSize:'1rem' }}>
+                          {codigoValidando ? '⏳' : codigoValido === true ? '✅' : codigoValido === false ? '❌' : null}
+                        </div>
                       </div>
-                      <div>
-                        <label style={lbl}>Motivo / autorización</label>
-                        <input style={inp} placeholder="Ej: Cliente frecuente, promoción..."
-                          value={form.descuento_motivo} onChange={e => setForm(f => ({...f, descuento_motivo:e.target.value}))}/>
-                      </div>
+                      {codigoInfo && (
+                        <p style={{ margin:'4px 0 0', fontSize:'0.72rem', fontWeight:600,
+                          color: codigoValido ? '#15803D' : '#DC2626' }}>
+                          {codigoValido
+                            ? `Código válido${codigoInfo.descripcion ? ` — ${codigoInfo.descripcion}` : ''}${codigoInfo.vence ? ` · vence ${codigoInfo.vence}` : ''}`
+                            : codigoInfo.mensaje}
+                        </p>
+                      )}
                     </div>
-                    {noches > 0 && form.descuento_pct && (
+
+                    {/* % y motivo — solo si código válido */}
+                    {codigoValido === true && (
+                      <div style={{ display:'grid', gridTemplateColumns:'120px 1fr', gap:'0.65rem' }}>
+                        <div>
+                          <label style={lbl}>Porcentaje %</label>
+                          <input type="number" min={1} max={100} style={inp} placeholder="Ej: 10"
+                            value={form.descuento_pct} onChange={e => setForm(f => ({...f, descuento_pct:e.target.value}))}/>
+                        </div>
+                        <div>
+                          <label style={lbl}>Motivo (opcional)</label>
+                          <input style={inp} placeholder="Ej: Cliente frecuente, cortesía..."
+                            value={form.descuento_motivo} onChange={e => setForm(f => ({...f, descuento_motivo:e.target.value}))}/>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Resumen con descuento */}
+                    {codigoValido === true && noches > 0 && form.descuento_pct && (
                       <div style={{ background:'#FEF9C3', border:'1px solid #FDE68A', borderRadius:8, padding:'0.6rem 0.85rem', fontSize:'0.8rem' }}>
                         <div style={{ display:'flex', justifyContent:'space-between', color:'#6B7280' }}>
                           <span>Precio original:</span><span>S/ {precioBase.toFixed(2)}</span>
@@ -684,13 +746,16 @@ function ModalNuevaReserva({ onClose, onCreada }) {
               )}
 
               {(() => {
-                const conflicto  = hayConflicto(habSel.fechas_ocupadas, form.fecha_entrada, form.fecha_salida)
-                const bloqueado  = noches < 1 || conflicto
-                const btnLabel   = noches < 1
+                const conflicto    = hayConflicto(habSel.fechas_ocupadas, form.fecha_entrada, form.fecha_salida)
+                const sinCodigo    = form.descuento && !codigoValido
+                const bloqueado    = noches < 1 || conflicto || sinCodigo
+                const btnLabel     = noches < 1
                   ? 'Selecciona las fechas'
                   : conflicto
                     ? '⛔ Fechas ocupadas — cambia la habitación'
-                    : 'Continuar → Pago'
+                    : sinCodigo
+                      ? '🔑 Ingresa un código de autorización válido'
+                      : 'Continuar → Pago'
                 return (
                   <button
                     onClick={() => { if (!bloqueado) setPaso(4) }}
