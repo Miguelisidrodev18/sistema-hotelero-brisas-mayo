@@ -171,18 +171,19 @@ function ModalNuevaReserva({ onClose, onCreada }) {
   const [habSede, setHabSede]           = useState('')
   const [habPiso, setHabPiso]           = useState(null) // null = todos
   const [sedes, setSedes]               = useState([])
-  const [habSel, setHabSel]             = useState(null)
+  const [habsSel, setHabsSel]           = useState([])   // array — soporta múltiples
   const [loadingHab, setLoadingHab]     = useState(false)
 
   const [form, setForm] = useState({
     fecha_entrada: '', fecha_salida: '', hora_checkin: '14:00', hora_checkout: '12:00', num_huespedes: 1,
     origen: 'presencial', notas: '',
-    descuento: false, descuento_pct: '', descuento_motivo: '',
+    descuento: false, descuento_tipo: 'pct', descuento_pct: '', descuento_motivo: '', descuento_precio_fijo: '',
     pago_ahora: false, pago_tipo: 'total', pago_metodo: 'efectivo', pago_ref: '',
   })
 
-  const [saving, setSaving] = useState(false)
-  const [error, setError]   = useState('')
+  const [saving, setSaving]       = useState(false)
+  const [error, setError]         = useState('')
+  const [acompanantes, setAcompanantes] = useState([]) // [{ nombre, dni, tipo }]
 
   // Estados para validación del código de descuento
   const [codigoAuth, setCodigoAuth]           = useState('')
@@ -190,21 +191,28 @@ function ModalNuevaReserva({ onClose, onCreada }) {
   const [codigoInfo, setCodigoInfo]           = useState(null)   // { descripcion, vence, mensaje }
   const [codigoValidando, setCodigoValidando] = useState(false)
 
+  // habSel = primera habitación (compatibilidad con Paso 3 cuando hay exactamente 1)
+  const habSel = habsSel.length === 1 ? habsSel[0] : null
+
   const today   = new Date().toISOString().split('T')[0]
   const noches  = form.fecha_entrada && form.fecha_salida
     ? Math.ceil((new Date(form.fecha_salida) - new Date(form.fecha_entrada)) / 86400000) : 0
-  const precioBase    = habSel ? Number(habSel.precio) * noches : 0
-  const descuentoAmt  = form.descuento && form.descuento_pct
+  const precioBaseTotal   = habsSel.reduce((s, h) => s + Number(h.precio), 0) * noches
+  const precioBase        = precioBaseTotal   // alias para compatibilidad
+  const usaPrecioFijo     = form.descuento && form.descuento_tipo === 'fijo' && habsSel.length === 1 && Number(form.descuento_precio_fijo) > 0
+  const descuentoAmt      = form.descuento && form.descuento_tipo === 'pct' && form.descuento_pct && codigoValido
     ? precioBase * Number(form.descuento_pct) / 100 : 0
-  const precioFinal   = precioBase - descuentoAmt
+  const precioFinal       = usaPrecioFijo
+    ? Number(form.descuento_precio_fijo) * noches
+    : precioBase - descuentoAmt
   const montoPago     = form.pago_tipo === 'adelanto' ? precioFinal * 0.5 : precioFinal
 
   const inp = { border:'1.5px solid #E5E7EB', borderRadius:10, padding:'0.6rem 0.85rem', fontSize:'0.875rem', outline:'none', width:'100%', boxSizing:'border-box' }
   const lbl = { display:'block', fontSize:'0.75rem', fontWeight:600, color:'#374151', marginBottom:'0.3rem' }
 
-  // Validar código de descuento en tiempo real
+  // Validar código de descuento en tiempo real (solo modo porcentaje)
   useEffect(() => {
-    if (!form.descuento || !codigoAuth.trim()) {
+    if (!form.descuento || form.descuento_tipo !== 'pct' || !codigoAuth.trim()) {
       setCodigoValido(null); setCodigoInfo(null); return
     }
     if (codigoAuth.length < 4) { setCodigoValido(null); setCodigoInfo(null); return }
@@ -220,7 +228,7 @@ function ModalNuevaReserva({ onClose, onCreada }) {
       finally { setCodigoValidando(false) }
     }, 350)
     return () => clearTimeout(t)
-  }, [codigoAuth, form.descuento])
+  }, [codigoAuth, form.descuento, form.descuento_tipo])
 
   // Buscar clientes
   useEffect(() => {
@@ -298,11 +306,11 @@ function ModalNuevaReserva({ onClose, onCreada }) {
   }
 
   async function confirmar() {
-    if (!habSel || noches < 1) return
+    if (habsSel.length < 1 || noches < 1) return
     setSaving(true); setError('')
     try {
       const payload = {
-        habitacion_id: habSel.id,
+        ...(habsSel.length === 1 ? { habitacion_id: habsSel[0].id } : { habitaciones: habsSel.map(h => h.id) }),
         user_id:       cliente?.id,
         fecha_entrada: form.fecha_entrada,
         fecha_salida:  form.fecha_salida,
@@ -311,15 +319,26 @@ function ModalNuevaReserva({ onClose, onCreada }) {
         num_huespedes: form.num_huespedes,
         origen:        form.origen,
         notas:         form.notas || undefined,
-        descuento_porcentaje: form.descuento && form.descuento_pct && codigoValido ? form.descuento_pct : undefined,
+        // Descuento modo porcentaje (con código)
+        descuento_porcentaje: form.descuento && form.descuento_tipo === 'pct' && form.descuento_pct && codigoValido ? form.descuento_pct : undefined,
         descuento_motivo:     form.descuento && form.descuento_motivo ? form.descuento_motivo : undefined,
-        codigo_descuento:     form.descuento && codigoValido ? codigoAuth.toUpperCase() : undefined,
+        codigo_descuento:     form.descuento && form.descuento_tipo === 'pct' && codigoValido ? codigoAuth.toUpperCase() : undefined,
+        // Descuento modo precio fijo
+        precio_noche_personalizado: usaPrecioFijo ? Number(form.descuento_precio_fijo) : undefined,
         pago_metodo:   form.pago_ahora ? form.pago_metodo : undefined,
         pago_tipo:     form.pago_ahora ? form.pago_tipo   : undefined,
         pago_referencia: form.pago_ref || undefined,
       }
       const res = await reservasApi.create(payload)
-      onCreada(res.data?.codigo)
+      const reservaId = res.data?.id ?? res.data?.reservas?.[0]?.id
+      // Guardar acompañantes si hay
+      const acompValidos = acompanantes.filter(a => a.nombre.trim())
+      if (reservaId && acompValidos.length > 0) {
+        try {
+          await axiosClient.post(`/reservas/${reservaId}/huespedes`, { huespedes: acompValidos })
+        } catch {}
+      }
+      onCreada(res.data?.codigo ?? res.data?.reservas?.[0]?.codigo)
     } catch (e) {
       setError(e.response?.data?.message ?? 'Error al crear la reserva.')
     } finally { setSaving(false) }
@@ -544,11 +563,22 @@ function ModalNuevaReserva({ onClose, onCreada }) {
                         <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(150px, 1fr))', gap:'0.6rem' }}>
                           {habs.map(h => {
                               const st = statusHab(h)
+                              const esSel = habsSel.some(x => x.id === h.id)
+                              const ocupada = st.dot === '#DC2626'
                               return (
-                                <div key={h.id} onClick={() => { setHabSel(h); setPaso(3) }}
-                                  style={{ border:`2px solid ${st.dot==='#DC2626'?'#FCA5A5':'#E5E7EB'}`, borderRadius:14, overflow:'hidden', cursor:'pointer', transition:'all 0.15s', opacity: st.dot==='#DC2626' ? 0.75 : 1 }}
-                                  onMouseEnter={e => { if(st.dot!=='#DC2626'){ e.currentTarget.style.borderColor='#F5922E'; e.currentTarget.style.transform='translateY(-2px)' } }}
-                                  onMouseLeave={e => { e.currentTarget.style.borderColor=st.dot==='#DC2626'?'#FCA5A5':'#E5E7EB'; e.currentTarget.style.transform='none' }}>
+                                <div key={h.id}
+                                  onClick={() => {
+                                    if (ocupada) return
+                                    setHabsSel(prev => esSel ? prev.filter(x => x.id !== h.id) : [...prev, h])
+                                  }}
+                                  style={{ border:`2px solid ${esSel ? '#F5922E' : ocupada ? '#FCA5A5' : '#E5E7EB'}`, borderRadius:14, overflow:'hidden', cursor: ocupada ? 'not-allowed' : 'pointer', transition:'all 0.15s', opacity: ocupada ? 0.75 : 1, position:'relative' }}
+                                  onMouseEnter={e => { if(!ocupada && !esSel){ e.currentTarget.style.borderColor='#F5922E'; e.currentTarget.style.transform='translateY(-2px)' } }}
+                                  onMouseLeave={e => { e.currentTarget.style.borderColor=esSel?'#F5922E':ocupada?'#FCA5A5':'#E5E7EB'; e.currentTarget.style.transform='none' }}>
+                                  {esSel && (
+                                    <div style={{ position:'absolute', top:6, left:6, width:22, height:22, borderRadius:'50%', background:'#F5922E', color:'white', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'0.7rem', fontWeight:800, zIndex:1 }}>
+                                      ✓
+                                    </div>
+                                  )}
                                   <div style={{ height:72, background:TIPO_GRADIENTS_REC[h.tipo]??TIPO_GRADIENTS_REC.matrimonial, position:'relative' }}>
                                     <span style={{ position:'absolute', top:6, right:6, background:st.bg, color:st.color, fontSize:'0.6rem', fontWeight:700, padding:'2px 7px', borderRadius:9999, border:`1px solid ${st.dot}33` }}>
                                       <span style={{ display:'inline-block', width:6, height:6, borderRadius:'50%', background:st.dot, marginRight:3, verticalAlign:'middle' }}/>
@@ -566,6 +596,24 @@ function ModalNuevaReserva({ onClose, onCreada }) {
                         </div>
                       </div>
                     ))}
+
+                    {/* Barra resumen + botón Continuar */}
+                    {habsSel.length > 0 && (
+                      <div style={{ position:'sticky', bottom:0, background:'white', padding:'0.75rem 0', borderTop:'1px solid #F3F4F6', marginTop:'0.5rem' }}>
+                        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'0.5rem' }}>
+                          <span style={{ fontSize:'0.82rem', color:'#6B7280' }}>
+                            {habsSel.length} habitaci{habsSel.length !== 1 ? 'ones' : 'ón'} seleccionada{habsSel.length !== 1 ? 's' : ''}
+                          </span>
+                          <span style={{ fontWeight:700, color:'#F5922E', fontSize:'0.88rem' }}>
+                            S/ {habsSel.reduce((s, h) => s + Number(h.precio), 0)}/noche
+                          </span>
+                        </div>
+                        <button onClick={() => setPaso(3)}
+                          style={{ width:'100%', padding:'0.85rem', borderRadius:12, border:'none', background:'linear-gradient(135deg,#3D1A06,#7B4019)', color:'white', fontWeight:700, fontSize:'0.9rem', cursor:'pointer' }}>
+                          Continuar con {habsSel.length} habitaci{habsSel.length !== 1 ? 'ones' : 'ón'} →
+                        </button>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -573,16 +621,24 @@ function ModalNuevaReserva({ onClose, onCreada }) {
           })()}
 
           {/* ── PASO 3: DETALLES + DESCUENTO ── */}
-          {paso === 3 && habSel && (
+          {paso === 3 && habsSel.length > 0 && (
             <div style={{ display:'flex', flexDirection:'column', gap:'0.9rem' }}>
-              {/* Mini card habitación */}
-              <div style={{ display:'flex', alignItems:'center', gap:10, padding:'0.7rem 0.9rem', background:'#FFF7ED', border:'2px solid #F5922E', borderRadius:12 }}>
-                <div style={{ width:36, height:36, borderRadius:8, background:TIPO_GRADIENTS_REC[habSel.tipo]??TIPO_GRADIENTS_REC.matrimonial, flexShrink:0 }}/>
-                <div style={{ flex:1 }}>
-                  <p style={{ fontWeight:700, color:'#111827', margin:0, fontSize:'0.88rem' }}>Hab. N° {habSel.numero} — {habSel.tipo_label}</p>
-                  <p style={{ fontSize:'0.72rem', color:'#9CA3AF', margin:0 }}>{habSel.sede_nombre} · Piso {habSel.piso}</p>
-                </div>
-                <button onClick={() => { setHabSel(null); setPaso(2) }} style={{ background:'none', border:'none', color:'#9CA3AF', fontSize:'0.72rem', cursor:'pointer' }}>Cambiar</button>
+              {/* Mini cards habitaciones seleccionadas */}
+              <div style={{ display:'flex', flexDirection:'column', gap:'0.45rem' }}>
+                {habsSel.map(h => (
+                  <div key={h.id} style={{ display:'flex', alignItems:'center', gap:10, padding:'0.55rem 0.9rem', background:'#FFF7ED', border:'1.5px solid #F5922E', borderRadius:10 }}>
+                    <div style={{ width:28, height:28, borderRadius:6, background:TIPO_GRADIENTS_REC[h.tipo]??TIPO_GRADIENTS_REC.matrimonial, flexShrink:0 }}/>
+                    <div style={{ flex:1 }}>
+                      <p style={{ fontWeight:700, color:'#111827', margin:0, fontSize:'0.82rem' }}>Hab. N° {h.numero} — {h.tipo_label}</p>
+                      <p style={{ fontSize:'0.68rem', color:'#9CA3AF', margin:0 }}>{h.sede_nombre} · Piso {h.piso} · S/ {h.precio}/noche</p>
+                    </div>
+                    {habsSel.length > 1 && (
+                      <button onClick={() => setHabsSel(prev => prev.filter(x => x.id !== h.id))}
+                        style={{ background:'none', border:'none', color:'#DC2626', fontSize:'0.72rem', cursor:'pointer', fontWeight:700 }}>✕</button>
+                    )}
+                  </div>
+                ))}
+                <button onClick={() => setPaso(2)} style={{ background:'none', border:'none', color:'#9CA3AF', fontSize:'0.72rem', cursor:'pointer', textAlign:'right' }}>Cambiar habitaciones</button>
               </div>
 
               {/* Fechas */}
@@ -616,19 +672,17 @@ function ModalNuevaReserva({ onClose, onCreada }) {
               </div>
 
               {/* Alerta de conflicto de fechas */}
-              {form.fecha_entrada && form.fecha_salida && hayConflicto(habSel.fechas_ocupadas, form.fecha_entrada, form.fecha_salida) && (
+              {form.fecha_entrada && form.fecha_salida && habsSel.some(h => hayConflicto(h.fechas_ocupadas, form.fecha_entrada, form.fecha_salida)) && (
                 <div style={{ background:'#FEF2F2', border:'1px solid #FCA5A5', borderRadius:10, padding:'0.7rem 1rem', display:'flex', alignItems:'flex-start', gap:8 }}>
                   <AlertCircle size={16} style={{ color:'#DC2626', flexShrink:0, marginTop:1 }}/>
                   <div>
                     <p style={{ fontWeight:700, color:'#DC2626', fontSize:'0.82rem', margin:0 }}>Conflicto de fechas detectado</p>
                     <p style={{ color:'#9CA3AF', fontSize:'0.72rem', margin:'2px 0 0' }}>
-                      Esta habitación tiene una reserva que se cruza con las fechas seleccionadas.
-                      Al confirmar, el sistema bloqueará si hay solapamiento real.
-                      Considera elegir otra habitación.
+                      {habsSel.filter(h => hayConflicto(h.fechas_ocupadas, form.fecha_entrada, form.fecha_salida)).map(h => `N° ${h.numero}`).join(', ')} tiene(n) reservas que se cruzan con las fechas seleccionadas.
                     </p>
-                    <button onClick={() => { setHabSel(null); setPaso(2) }}
+                    <button onClick={() => setPaso(2)}
                       style={{ marginTop:6, fontSize:'0.75rem', fontWeight:700, color:'#DC2626', background:'none', border:'none', cursor:'pointer', padding:0, textDecoration:'underline' }}>
-                      ← Elegir otra habitación
+                      ← Elegir otras habitaciones
                     </button>
                   </div>
                 </div>
@@ -638,7 +692,7 @@ function ModalNuevaReserva({ onClose, onCreada }) {
               <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'0.65rem' }}>
                 <div>
                   <label style={lbl}>N° huéspedes</label>
-                  <input type="number" min={1} max={habSel.capacidad} style={inp} value={form.num_huespedes}
+                  <input type="number" min={1} max={habsSel.reduce((s, h) => s + (h.capacidad || 4), 0)} style={inp} value={form.num_huespedes}
                     onChange={e => setForm(f => ({...f, num_huespedes:+e.target.value}))}/>
                 </div>
                 <div>
@@ -654,6 +708,37 @@ function ModalNuevaReserva({ onClose, onCreada }) {
                 </div>
               </div>
 
+              {/* ── Acompañantes / personas adicionales ── */}
+              <div style={{ border:'1.5px solid #E5E7EB', borderRadius:12, padding:'0.85rem 1rem' }}>
+                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom: acompanantes.length > 0 ? '0.65rem' : 0 }}>
+                  <span style={{ fontWeight:600, fontSize:'0.85rem', color:'#374151' }}>👥 Acompañantes / personas adicionales</span>
+                  <button onClick={() => setAcompanantes(prev => [...prev, { nombre:'', dni:'', tipo:'Acompañante' }])}
+                    style={{ background:'none', border:'1.5px solid #E5E7EB', borderRadius:8, padding:'3px 10px', fontSize:'0.72rem', fontWeight:600, color:'#6B7280', cursor:'pointer' }}>
+                    + Agregar
+                  </button>
+                </div>
+                {acompanantes.map((a, i) => (
+                  <div key={i} style={{ display:'grid', gridTemplateColumns:'1fr 120px 130px 28px', gap:'0.4rem', marginBottom:'0.4rem', alignItems:'center' }}>
+                    <input style={{ ...inp, padding:'0.45rem 0.65rem', fontSize:'0.78rem' }} placeholder="Nombre completo"
+                      value={a.nombre} onChange={e => setAcompanantes(prev => prev.map((x,j) => j===i ? {...x, nombre:e.target.value} : x))}/>
+                    <input style={{ ...inp, padding:'0.45rem 0.65rem', fontSize:'0.78rem' }} placeholder="DNI"
+                      value={a.dni} onChange={e => setAcompanantes(prev => prev.map((x,j) => j===i ? {...x, dni:e.target.value} : x))}/>
+                    <select style={{ ...inp, padding:'0.45rem 0.5rem', fontSize:'0.72rem' }}
+                      value={a.tipo} onChange={e => setAcompanantes(prev => prev.map((x,j) => j===i ? {...x, tipo:e.target.value} : x))}>
+                      <option value="Acompañante">Acompañante</option>
+                      <option value="Cónyuge">Cónyuge</option>
+                      <option value="Hijo/Hija">Hijo/Hija</option>
+                      <option value="Otro">Otro</option>
+                    </select>
+                    <button onClick={() => setAcompanantes(prev => prev.filter((_,j) => j!==i))}
+                      style={{ background:'none', border:'none', color:'#DC2626', cursor:'pointer', fontSize:'0.85rem', fontWeight:700, padding:0, lineHeight:1 }}>✕</button>
+                  </div>
+                ))}
+                {acompanantes.length === 0 && (
+                  <p style={{ fontSize:'0.72rem', color:'#9CA3AF', margin:'0.4rem 0 0' }}>Sin acompañantes registrados. Opcional.</p>
+                )}
+              </div>
+
               {/* Notas */}
               <div>
                 <label style={lbl}>Notas internas</label>
@@ -661,71 +746,130 @@ function ModalNuevaReserva({ onClose, onCreada }) {
                   value={form.notas} onChange={e => setForm(f => ({...f, notas:e.target.value}))}/>
               </div>
 
-              {/* Descuento */}
+              {/* ── Descuento — dos modos ── */}
               <div style={{ border:`1.5px solid ${form.descuento ? '#FDE68A' : '#E5E7EB'}`, borderRadius:12, padding:'0.85rem 1rem', background: form.descuento ? '#FFFBEB' : 'white' }}>
                 <label style={{ display:'flex', alignItems:'center', gap:8, cursor:'pointer', marginBottom: form.descuento ? '0.75rem' : 0 }}>
                   <input type="checkbox" checked={form.descuento} onChange={e => {
-                    setForm(f => ({...f, descuento:e.target.checked, descuento_pct:'', descuento_motivo:''}))
+                    setForm(f => ({...f, descuento:e.target.checked, descuento_pct:'', descuento_motivo:'', descuento_precio_fijo:'', descuento_tipo:'pct'}))
                     if (!e.target.checked) { setCodigoAuth(''); setCodigoValido(null); setCodigoInfo(null) }
                   }}/>
-                  <span style={{ fontWeight:600, fontSize:'0.85rem', color:'#374151' }}>🏷️ Aplicar descuento autorizado</span>
+                  <span style={{ fontWeight:600, fontSize:'0.85rem', color:'#374151' }}>🏷️ Aplicar descuento</span>
                 </label>
                 {form.descuento && (
                   <div style={{ display:'flex', flexDirection:'column', gap:'0.75rem' }}>
-                    {/* Campo código de autorización */}
-                    <div>
-                      <label style={lbl}>Código de autorización *</label>
-                      <div style={{ position:'relative' }}>
-                        <input
-                          style={{ ...inp, textTransform:'uppercase', letterSpacing:'0.06em', fontWeight:700, fontFamily:'monospace', paddingRight:'2.2rem',
-                            borderColor: codigoValido === true ? '#16A34A' : codigoValido === false ? '#DC2626' : '#E5E7EB' }}
-                          placeholder="Ej: AUTH-XK92"
-                          value={codigoAuth}
-                          onChange={e => { setCodigoAuth(e.target.value.toUpperCase().replace(/[^A-Z0-9\-]/g,'')); setCodigoValido(null); setCodigoInfo(null) }}
-                          maxLength={20}
-                        />
-                        <div style={{ position:'absolute', right:'0.6rem', top:'50%', transform:'translateY(-50%)', fontSize:'1rem' }}>
-                          {codigoValidando ? '⏳' : codigoValido === true ? '✅' : codigoValido === false ? '❌' : null}
-                        </div>
-                      </div>
-                      {codigoInfo && (
-                        <p style={{ margin:'4px 0 0', fontSize:'0.72rem', fontWeight:600,
-                          color: codigoValido ? '#15803D' : '#DC2626' }}>
-                          {codigoValido
-                            ? `Código válido${codigoInfo.descripcion ? ` — ${codigoInfo.descripcion}` : ''}${codigoInfo.vence ? ` · vence ${codigoInfo.vence}` : ''}`
-                            : codigoInfo.mensaje}
-                        </p>
-                      )}
+                    {/* Selector de tipo de descuento */}
+                    <div style={{ display:'flex', gap:'0.5rem' }}>
+                      {[
+                        { v:'fijo', label:'Precio fijo por noche', disabled: habsSel.length > 1 },
+                        { v:'pct',  label:'Porcentaje %', disabled: false },
+                      ].map(opt => (
+                        <button key={opt.v}
+                          onClick={() => {
+                            if (opt.disabled) return
+                            setForm(f => ({...f, descuento_tipo:opt.v, descuento_pct:'', descuento_precio_fijo:''}))
+                            if (opt.v === 'fijo') { setCodigoAuth(''); setCodigoValido(null); setCodigoInfo(null) }
+                          }}
+                          style={{ flex:1, padding:'0.55rem', borderRadius:8, border:`1.5px solid ${form.descuento_tipo===opt.v?'#F5922E':'#E5E7EB'}`, background:form.descuento_tipo===opt.v?'#FFF7ED':'white', color: opt.disabled ? '#D1D5DB' : form.descuento_tipo===opt.v?'#F5922E':'#6B7280', fontSize:'0.75rem', fontWeight:600, cursor:opt.disabled?'not-allowed':'pointer' }}>
+                          {opt.label}
+                        </button>
+                      ))}
                     </div>
+                    {habsSel.length > 1 && form.descuento_tipo === 'fijo' && (
+                      <p style={{ fontSize:'0.72rem', color:'#9CA3AF', margin:0 }}>Precio fijo solo disponible para 1 habitación. Usa porcentaje para múltiples.</p>
+                    )}
 
-                    {/* % y motivo — solo si código válido */}
-                    {codigoValido === true && (
-                      <div style={{ display:'grid', gridTemplateColumns:'120px 1fr', gap:'0.65rem' }}>
+                    {/* ── Modo FIJO ── */}
+                    {form.descuento_tipo === 'fijo' && habsSel.length === 1 && (
+                      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'0.65rem' }}>
                         <div>
-                          <label style={lbl}>Porcentaje %</label>
-                          <input type="number" min={1} max={100} style={inp} placeholder="Ej: 10"
-                            value={form.descuento_pct} onChange={e => setForm(f => ({...f, descuento_pct:e.target.value}))}/>
+                          <label style={lbl}>Precio por noche (S/)</label>
+                          <input type="number" min={1} style={inp} placeholder={`Actual: S/ ${habsSel[0].precio}`}
+                            value={form.descuento_precio_fijo} onChange={e => setForm(f => ({...f, descuento_precio_fijo:e.target.value}))}/>
                         </div>
                         <div>
                           <label style={lbl}>Motivo (opcional)</label>
-                          <input style={inp} placeholder="Ej: Cliente frecuente, cortesía..."
+                          <input style={inp} placeholder="Ej: Estadía prolongada..."
                             value={form.descuento_motivo} onChange={e => setForm(f => ({...f, descuento_motivo:e.target.value}))}/>
                         </div>
                       </div>
                     )}
-
-                    {/* Resumen con descuento */}
-                    {codigoValido === true && noches > 0 && form.descuento_pct && (
+                    {/* Resumen modo fijo */}
+                    {form.descuento_tipo === 'fijo' && habsSel.length === 1 && noches > 0 && Number(form.descuento_precio_fijo) > 0 && (
                       <div style={{ background:'#FEF9C3', border:'1px solid #FDE68A', borderRadius:8, padding:'0.6rem 0.85rem', fontSize:'0.8rem' }}>
                         <div style={{ display:'flex', justifyContent:'space-between', color:'#6B7280' }}>
-                          <span>Precio original:</span><span>S/ {precioBase.toFixed(2)}</span>
+                          <span>Precio original:</span><span>S/ {habsSel[0].precio} × {noches}n = S/ {precioBase.toFixed(2)}</span>
                         </div>
                         <div style={{ display:'flex', justifyContent:'space-between', color:'#DC2626' }}>
-                          <span>Descuento {form.descuento_pct}%:</span><span>-S/ {descuentoAmt.toFixed(2)}</span>
+                          <span>Precio fijo:</span><span>S/ {form.descuento_precio_fijo} × {noches}n = S/ {precioFinal.toFixed(2)}</span>
                         </div>
                         <div style={{ display:'flex', justifyContent:'space-between', fontWeight:800, color:'#16A34A', borderTop:'1px solid #FDE68A', paddingTop:4, marginTop:4 }}>
-                          <span>Total con descuento:</span><span>S/ {precioFinal.toFixed(2)}</span>
+                          <span>Ahorro:</span><span>-S/ {(precioBase - precioFinal).toFixed(2)}</span>
                         </div>
+                      </div>
+                    )}
+
+                    {/* ── Modo PORCENTAJE ── */}
+                    {form.descuento_tipo === 'pct' && (
+                      <div style={{ display:'flex', flexDirection:'column', gap:'0.75rem' }}>
+                        {/* Aviso de código requerido */}
+                        <div style={{ background:'#FFF7ED', border:'1.5px solid #FDE68A', borderRadius:8, padding:'0.6rem 0.85rem', fontSize:'0.78rem', display:'flex', gap:8, alignItems:'flex-start' }}>
+                          <span style={{ fontSize:'1rem', lineHeight:1 }}>🔐</span>
+                          <span style={{ color:'#92400E' }}>Se requiere un <strong>código de autorización</strong> para aplicar descuento porcentual. Ingrese el código a continuación.</span>
+                        </div>
+                        {/* Campo código */}
+                        <div>
+                          <label style={lbl}>Código de autorización *</label>
+                          <div style={{ position:'relative' }}>
+                            <input
+                              style={{ ...inp, textTransform:'uppercase', letterSpacing:'0.06em', fontWeight:700, fontFamily:'monospace', paddingRight:'2.2rem',
+                                borderColor: codigoValido === true ? '#16A34A' : codigoValido === false ? '#DC2626' : '#E5E7EB' }}
+                              placeholder="Ej: AUTH-XK92"
+                              value={codigoAuth}
+                              onChange={e => { setCodigoAuth(e.target.value.toUpperCase().replace(/[^A-Z0-9\-]/g,'')); setCodigoValido(null); setCodigoInfo(null) }}
+                              maxLength={20}
+                            />
+                            <div style={{ position:'absolute', right:'0.6rem', top:'50%', transform:'translateY(-50%)', fontSize:'1rem' }}>
+                              {codigoValidando ? '⏳' : codigoValido === true ? '✅' : codigoValido === false ? '❌' : null}
+                            </div>
+                          </div>
+                          {codigoInfo && (
+                            <p style={{ margin:'4px 0 0', fontSize:'0.72rem', fontWeight:600,
+                              color: codigoValido ? '#15803D' : '#DC2626' }}>
+                              {codigoValido
+                                ? `Código válido${codigoInfo.descripcion ? ` — ${codigoInfo.descripcion}` : ''}${codigoInfo.vence ? ` · vence ${codigoInfo.vence}` : ''}`
+                                : codigoInfo.mensaje}
+                            </p>
+                          )}
+                        </div>
+                        {/* % y motivo — solo si código válido */}
+                        {codigoValido === true && (
+                          <div style={{ display:'grid', gridTemplateColumns:'120px 1fr', gap:'0.65rem' }}>
+                            <div>
+                              <label style={lbl}>Porcentaje %</label>
+                              <input type="number" min={1} max={100} style={inp} placeholder="Ej: 10"
+                                value={form.descuento_pct} onChange={e => setForm(f => ({...f, descuento_pct:e.target.value}))}/>
+                            </div>
+                            <div>
+                              <label style={lbl}>Motivo (opcional)</label>
+                              <input style={inp} placeholder="Ej: Cliente frecuente, cortesía..."
+                                value={form.descuento_motivo} onChange={e => setForm(f => ({...f, descuento_motivo:e.target.value}))}/>
+                            </div>
+                          </div>
+                        )}
+                        {/* Resumen descuento porcentaje */}
+                        {codigoValido === true && noches > 0 && form.descuento_pct && (
+                          <div style={{ background:'#FEF9C3', border:'1px solid #FDE68A', borderRadius:8, padding:'0.6rem 0.85rem', fontSize:'0.8rem' }}>
+                            <div style={{ display:'flex', justifyContent:'space-between', color:'#6B7280' }}>
+                              <span>Precio original:</span><span>S/ {precioBase.toFixed(2)}</span>
+                            </div>
+                            <div style={{ display:'flex', justifyContent:'space-between', color:'#DC2626' }}>
+                              <span>Descuento {form.descuento_pct}%:</span><span>-S/ {descuentoAmt.toFixed(2)}</span>
+                            </div>
+                            <div style={{ display:'flex', justifyContent:'space-between', fontWeight:800, color:'#16A34A', borderTop:'1px solid #FDE68A', paddingTop:4, marginTop:4 }}>
+                              <span>Total con descuento:</span><span>S/ {precioFinal.toFixed(2)}</span>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
@@ -736,7 +880,7 @@ function ModalNuevaReserva({ onClose, onCreada }) {
               {noches > 0 && !form.descuento && (
                 <div style={{ background:'#FFF7ED', border:'1px solid rgba(245,146,46,0.3)', borderRadius:10, padding:'0.75rem 1rem' }}>
                   <div style={{ display:'flex', justifyContent:'space-between', fontSize:'0.82rem', color:'#6B7280', marginBottom:3 }}>
-                    <span>S/ {habSel.precio} × {noches} noche{noches!==1?'s':''}</span>
+                    <span>{habsSel.length} hab. × S/ {habsSel.reduce((s,h)=>s+Number(h.precio),0)} × {noches} noche{noches!==1?'s':''}</span>
                     <span>S/ {precioBase.toFixed(2)}</span>
                   </div>
                   <div style={{ display:'flex', justifyContent:'space-between', fontWeight:800, fontSize:'1rem', color:'#3D1A06', borderTop:'1px solid rgba(245,146,46,0.2)', paddingTop:4 }}>
@@ -746,16 +890,19 @@ function ModalNuevaReserva({ onClose, onCreada }) {
               )}
 
               {(() => {
-                const conflicto    = hayConflicto(habSel.fechas_ocupadas, form.fecha_entrada, form.fecha_salida)
-                const sinCodigo    = form.descuento && !codigoValido
-                const bloqueado    = noches < 1 || conflicto || sinCodigo
+                const conflicto    = habsSel.some(h => hayConflicto(h.fechas_ocupadas, form.fecha_entrada, form.fecha_salida))
+                const sinDescuento = form.descuento && form.descuento_tipo === 'pct' && !codigoValido
+                const sinFijo      = form.descuento && form.descuento_tipo === 'fijo' && habsSel.length === 1 && !Number(form.descuento_precio_fijo)
+                const bloqueado    = noches < 1 || conflicto || sinDescuento || sinFijo
                 const btnLabel     = noches < 1
                   ? 'Selecciona las fechas'
                   : conflicto
                     ? '⛔ Fechas ocupadas — cambia la habitación'
-                    : sinCodigo
+                    : sinDescuento
                       ? '🔑 Ingresa un código de autorización válido'
-                      : 'Continuar → Pago'
+                      : sinFijo
+                        ? 'Ingresa el precio fijo por noche'
+                        : 'Continuar → Pago'
                 return (
                   <button
                     onClick={() => { if (!bloqueado) setPaso(4) }}
@@ -774,8 +921,8 @@ function ModalNuevaReserva({ onClose, onCreada }) {
               {/* Resumen rápido */}
               <div style={{ background:'#F9FAFB', borderRadius:12, padding:'0.75rem 1rem', fontSize:'0.82rem' }}>
                 <div style={{ display:'flex', justifyContent:'space-between', marginBottom:3 }}>
-                  <span style={{ color:'#6B7280' }}>Habitación</span>
-                  <span style={{ fontWeight:600 }}>N° {habSel.numero} — {habSel.tipo_label}</span>
+                  <span style={{ color:'#6B7280' }}>Habitaci{habsSel.length!==1?'ones':'ón'}</span>
+                  <span style={{ fontWeight:600 }}>{habsSel.map(h => `N° ${h.numero}`).join(', ')}</span>
                 </div>
                 <div style={{ display:'flex', justifyContent:'space-between', marginBottom:3 }}>
                   <span style={{ color:'#6B7280' }}>Fechas</span>

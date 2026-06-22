@@ -16,9 +16,10 @@ class HuespedController extends Controller
         }
 
         $data = $request->validate([
-            'huespedes'        => 'required|array|min:1|max:20',
+            'huespedes'          => 'required|array|min:1|max:20',
             'huespedes.*.nombre' => 'required|string|max:100',
             'huespedes.*.dni'    => 'nullable|string|max:15',
+            'huespedes.*.tipo'   => 'nullable|string|max:50',
         ]);
 
         // Idempotente: reemplaza la lista completa
@@ -30,6 +31,7 @@ class HuespedController extends Controller
                 'reserva_id' => $reserva->id,
                 'nombre'     => trim($h['nombre']),
                 'dni'        => !empty($h['dni']) ? trim($h['dni']) : null,
+                'tipo'       => !empty($h['tipo']) ? trim($h['tipo']) : null,
                 'created_at' => now(),
             ])
             ->values();

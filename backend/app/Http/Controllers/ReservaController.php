@@ -62,8 +62,9 @@ class ReservaController extends Controller
             'origen'               => 'nullable|in:online,presencial,llamada',
             'descuento_porcentaje' => 'nullable|numeric|min:0|max:100',
             'descuento_motivo'     => 'nullable|string|max:255',
-            'codigo_descuento'     => 'nullable|string|max:20',
-            'pago_metodo'          => 'nullable|in:efectivo,transferencia,yape,plin,tarjeta',
+            'codigo_descuento'           => 'nullable|string|max:20',
+            'precio_noche_personalizado' => 'nullable|numeric|min:1',
+            'pago_metodo'                => 'nullable|in:efectivo,transferencia,yape,plin,tarjeta',
             'pago_tipo'            => 'nullable|in:adelanto,total',
             'pago_referencia'      => 'nullable|string|max:100',
             'hora_checkin'         => 'nullable|date_format:H:i',
@@ -126,9 +127,21 @@ class ReservaController extends Controller
 
                 $descuentoPct = null;
                 $precioTotal  = $precioOriginal;
-                if ($codigoDescuentoId && !empty($data['descuento_porcentaje'])) {
+
+                if (!empty($data['precio_noche_personalizado']) && in_array($authUser->role, ['administrador','recepcionista'])) {
+                    // Precio fijo por noche — sin código requerido
+                    $precioNochePersonalizado = (float) $data['precio_noche_personalizado'];
+                    $precioTotal  = round($precioNochePersonalizado * $noches, 2);
+                    $descuentoPct = $precioOriginal > 0
+                        ? round(($precioOriginal - $precioTotal) / $precioOriginal * 100, 2)
+                        : null;
+                    // Guardar el precio ajustado como precio_noche para que el resumen sea coherente
+                    $precioNoche = $precioNochePersonalizado;
+                } elseif ($codigoDescuentoId && !empty($data['descuento_porcentaje'])) {
                     $descuentoPct = (float) $data['descuento_porcentaje'];
                     $precioTotal  = round($precioOriginal * (1 - $descuentoPct / 100), 2);
+                    // Restaurar precio_noche original para que la columna refleje la tarifa base
+                    $precioNoche  = round($habitacion->precio * $factor, 2);
                 }
 
                 $reserva = Reserva::create([
@@ -142,7 +155,7 @@ class ReservaController extends Controller
                     'num_huespedes'        => $data['num_huespedes'],
                     'precio_noche'         => $precioNoche,
                     'precio_total'         => $precioTotal,
-                    'precio_original'      => $descuentoPct ? $precioOriginal : null,
+                    'precio_original'      => $descuentoPct !== null ? $precioOriginal : null,
                     'descuento_porcentaje' => $descuentoPct,
                     'descuento_motivo'     => $data['descuento_motivo'] ?? null,
                     'codigo_descuento_id'  => $codigoDescuentoId,

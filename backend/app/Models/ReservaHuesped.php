@@ -12,7 +12,7 @@ class ReservaHuesped extends Model
 
     protected $table = 'reserva_huespedes';
 
-    protected $fillable = ['reserva_id', 'nombre', 'dni'];
+    protected $fillable = ['reserva_id', 'nombre', 'dni', 'tipo'];
 
     public function reserva(): BelongsTo
     {
