@@ -4,6 +4,7 @@ import { reservasApi } from '../../api/reservas'
 import { habitacionesApi } from '../../api/habitaciones'
 import { sedesApi } from '../../api/sedes'
 import { cocherasApi } from '../../api/cocheras'
+import { todayLocal } from '../../utils/date'
 import QRLib from 'qr.js/lib/QRCode'
 import EL from 'qr.js/lib/ErrorCorrectLevel'
 
@@ -267,13 +268,13 @@ function NuevaReservaForm({ onSave, onCancel, saving, preHabId }) {
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
         <div>
           <label style={lbl}>Fecha entrada *</label>
-          <input style={inp} type="date" value={form.fecha_entrada} min={new Date().toISOString().split('T')[0]}
+          <input style={inp} type="date" value={form.fecha_entrada} min={todayLocal()}
             onChange={e => set('fecha_entrada', e.target.value)} required/>
           {err('fecha_entrada')}
         </div>
         <div>
           <label style={lbl}>Fecha salida *</label>
-          <input style={inp} type="date" value={form.fecha_salida} min={form.fecha_entrada || new Date().toISOString().split('T')[0]}
+          <input style={inp} type="date" value={form.fecha_salida} min={form.fecha_entrada || todayLocal()}
             onChange={e => set('fecha_salida', e.target.value)} required/>
           {err('fecha_salida')}
         </div>

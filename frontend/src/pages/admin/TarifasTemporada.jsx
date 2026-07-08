@@ -3,6 +3,7 @@ import { useToast } from '../../context/ToastContext'
 import { useConfirm } from '../../hooks/useConfirm'
 import { tarifasApi } from '../../api/tarifas'
 import { sedesApi } from '../../api/sedes'
+import { todayLocal } from '../../utils/date'
 import { Plus, Edit2, Trash2, Tag, Calendar, Percent } from 'lucide-react'
 
 function fmt(date) {
@@ -160,7 +161,7 @@ export default function TarifasTemporada() {
     catch { toast.error('No se pudo eliminar.') }
   }
 
-  const today = new Date().toISOString().slice(0, 10)
+  const today = todayLocal()
 
   function estadoTarifa(t) {
     if (!t.activo) return { label: 'Inactiva', bg: '#F3F4F6', color: '#9CA3AF' }

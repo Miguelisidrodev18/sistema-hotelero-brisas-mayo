@@ -6,6 +6,7 @@ import { sedesApi } from '../../api/sedes'
 import { reservasApi } from '../../api/reservas'
 import axiosClient from '../../api/axiosClient'
 import { useBreakpoint } from '../../hooks/useBreakpoint'
+import { todayLocal, toLocalYMD } from '../../utils/date'
 
 const TIPO_GRADIENTS = {
   matrimonial:           'linear-gradient(135deg, #7B4019 0%, #3D1A06 100%)',
@@ -78,7 +79,7 @@ function CalendarioReserva({ fechasOcupadas = [], entrada, salida, today, onSele
     const s = new Set()
     fechasOcupadas.forEach(({ entrada: e, salida: sa }) => {
       const d = new Date(e + 'T12:00:00'), fin = new Date(sa + 'T12:00:00')
-      while (d < fin) { s.add(d.toISOString().split('T')[0]); d.setDate(d.getDate() + 1) }
+      while (d < fin) { s.add(toLocalYMD(d)); d.setDate(d.getDate() + 1) }
     })
     return s
   }, [fechasOcupadas])
@@ -97,7 +98,7 @@ function CalendarioReserva({ fechasOcupadas = [], entrada, salida, today, onSele
     d.setDate(d.getDate() + 1)
     const fin = new Date(end + 'T12:00:00')
     while (d < fin) {
-      if (ocupados.has(d.toISOString().split('T')[0])) return true
+      if (ocupados.has(toLocalYMD(d))) return true
       d.setDate(d.getDate() + 1)
     }
     return false
@@ -254,7 +255,7 @@ export default function ReservarHabitacion() {
   const [saving, setSaving]           = useState(false)
   const [error, setError]             = useState('')
 
-  const today = new Date().toISOString().split('T')[0]
+  const today = todayLocal()
   const [form, setForm] = useState({ fecha_entrada: preEntrada, fecha_salida: '', num_huespedes: 1 })
   const [huespedes, setHuespedes] = useState([{ nombre: '', dni: '' }])
   const [mostrarHuespedes, setMostrarHuespedes] = useState(false)

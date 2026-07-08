@@ -1,11 +1,12 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { CalendarDays, Users, BedDouble, Search } from 'lucide-react'
+import { todayLocal, toLocalYMD } from '../../utils/date'
 
 export default function SearchBar() {
   const navigate = useNavigate()
-  const today    = new Date().toISOString().split('T')[0]
-  const tomorrow = new Date(Date.now() + 86400000).toISOString().split('T')[0]
+  const today    = todayLocal()
+  const tomorrow = toLocalYMD(new Date(Date.now() + 86400000))
 
   const [form, setForm] = useState({
     entrada: today, salida: tomorrow,

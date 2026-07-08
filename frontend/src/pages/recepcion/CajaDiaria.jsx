@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { recepcionApi } from '../../api/recepcion'
 import { Banknote, Smartphone, Building2, CreditCard, TrendingUp, Calendar, RefreshCw } from 'lucide-react'
+import { todayLocal } from '../../utils/date'
 
 const METODO_CONFIG = {
   yape:         { label: 'Yape',          icon: Smartphone, color: '#7C3AED', bg: '#EDE9FE' },
@@ -63,7 +64,7 @@ function PagoRow({ pago }) {
 export default function CajaDiaria() {
   const [data,    setData]    = useState(null)
   const [loading, setLoading] = useState(true)
-  const [fecha,   setFecha]   = useState(() => new Date().toISOString().slice(0, 10))
+  const [fecha,   setFecha]   = useState(() => todayLocal())
 
   const load = useCallback(async () => {
     setLoading(true)

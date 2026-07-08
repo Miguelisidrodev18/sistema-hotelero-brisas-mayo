@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { Car, Plus, X, Calendar, CheckCircle, Bike, Accessibility, ChevronRight, ChevronLeft, BedDouble } from 'lucide-react'
 import { cocherasApi } from '../../api/cocheras'
 import { reservasApi } from '../../api/reservas'
+import { todayLocal } from '../../utils/date'
 
 const TIPO_META = {
   auto:          { label: 'Auto',          icon: Car,           color: '#1D4ED8', bg: '#EFF6FF' },
@@ -42,7 +43,7 @@ function ModalReservar({ disponibles, reservasHotel, onClose, onSave }) {
   const [filtroTipo, setFiltroTipo] = useState('')
   const [saving, setSaving]         = useState(false)
   const [error, setError]           = useState('')
-  const today = new Date().toISOString().split('T')[0]
+  const today = todayLocal()
 
 
   // Fechas: desde reserva vinculada o manual
@@ -416,7 +417,7 @@ export default function MisCocheras() {
             const noches   = entStr && salStr
               ? Math.ceil((new Date(salStr + 'T12:00:00') - new Date(entStr + 'T12:00:00')) / 86400000)
               : 0
-            const esHoy    = entStr === new Date().toISOString().split('T')[0]
+            const esHoy    = entStr === todayLocal()
 
             return (
               <div key={r.id} style={{ background: 'white', border: `1px solid ${esHoy && r.estado === 'confirmada' ? '#FED7AA' : '#E5E7EB'}`, borderRadius: 16, padding: '1.25rem', display: 'flex', gap: '1rem', alignItems: 'flex-start', boxShadow: esHoy ? '0 0 0 2px rgba(245,146,46,0.12)' : 'none' }}>

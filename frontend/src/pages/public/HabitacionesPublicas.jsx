@@ -4,6 +4,7 @@ import { Users, Eye, BedDouble, MapPin, Filter, LogIn, UserPlus, X, CalendarChec
 import { habitacionesApi } from '../../api/habitaciones'
 import { sedesApi } from '../../api/sedes'
 import { useAuth } from '../../context/AuthContext'
+import { toLocalYMD } from '../../utils/date'
 
 const TIPO_GRADIENTS = {
   matrimonial:           'linear-gradient(135deg, #7B4019 0%, #3D1A06 100%)',
@@ -33,7 +34,7 @@ function MiniCal({ hab, fechasOcupadas = [], onDateSelect }) {
       const d   = new Date(entrada + 'T12:00:00')
       const fin = new Date(salida  + 'T12:00:00')
       while (d < fin) {
-        set.add(d.toISOString().split('T')[0])
+        set.add(toLocalYMD(d))
         d.setDate(d.getDate() + 1)
       }
     })
@@ -42,7 +43,7 @@ function MiniCal({ hab, fechasOcupadas = [], onDateSelect }) {
 
   const primerDia = new Date(year, month, 1).getDay()
   const diasEnMes = new Date(year, month + 1, 0).getDate()
-  const hoyStr    = base.toISOString().split('T')[0]
+  const hoyStr    = toLocalYMD(base)
   const hayOcupados = ocupados.size > 0
   const pad = n => String(n).padStart(2, '0')
 

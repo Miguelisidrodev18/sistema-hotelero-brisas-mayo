@@ -8,6 +8,7 @@ import { serviciosApi } from '../../api/servicios'
 import { useToast } from '../../context/ToastContext'
 import { useConfirm } from '../../hooks/useConfirm'
 import axiosClient from '../../api/axiosClient'
+import { todayLocal } from '../../utils/date'
 
 const METODO_LABEL = { yape:'Yape', plin:'Plin', transferencia:'Transferencia', efectivo:'Efectivo', tarjeta:'Tarjeta' }
 const TIPO_PAGO_LABEL = { adelanto:'Adelanto 50%', saldo:'Saldo', total:'Completo' }
@@ -125,7 +126,7 @@ function QrCamScanner({ onResult, onError }) {
 // ── Modal: nueva reserva presencial / llamada ────────────────
 // Estado de disponibilidad de una habitación según sus fechas ocupadas
 function statusHab(hab) {
-  const hoy = new Date().toISOString().split('T')[0]
+  const hoy = todayLocal()
   const fut  = (hab.fechas_ocupadas ?? []).filter(f => f.salida >= hoy)
   if (!fut.length) return { dot:'#16A34A', label:'Disponible', bg:'#F0FDF4', color:'#166534' }
 
@@ -194,7 +195,7 @@ function ModalNuevaReserva({ onClose, onCreada }) {
   // habSel = primera habitación (compatibilidad con Paso 3 cuando hay exactamente 1)
   const habSel = habsSel.length === 1 ? habsSel[0] : null
 
-  const today   = new Date().toISOString().split('T')[0]
+  const today   = todayLocal()
   const noches  = form.fecha_entrada && form.fecha_salida
     ? Math.ceil((new Date(form.fecha_salida) - new Date(form.fecha_entrada)) / 86400000) : 0
   const precioBaseTotal   = habsSel.reduce((s, h) => s + Number(h.precio), 0) * noches
