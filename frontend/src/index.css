@@ -451,6 +451,9 @@ body {
 }
 
 /* ── Ticket térmico (80mm) ────────────────── */
+/* El CSS de impresión de #thermal-ticket se inyecta localmente en cada
+   página que lo usa (Cocina.jsx, ComprobantesPedidos.jsx) — no aquí, para
+   no pisar el @media print de otras páginas (TicketCheckin, ReciboPago, etc.) */
 #thermal-ticket {
   display: none;
   font-family: 'Courier New', Courier, monospace;
@@ -459,10 +462,4 @@ body {
   padding: 4mm;
   white-space: pre;
   line-height: 1.4;
-}
-
-@media print {
-  body > * { display: none !important; }
-  #root { display: block !important; }
-  #thermal-ticket { display: block !important; }
 }

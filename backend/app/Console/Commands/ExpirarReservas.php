@@ -12,11 +12,14 @@ class ExpirarReservas extends Command
      * @var string
      */
     protected $signature = 'reservas:expirar';
-    protected $description = 'Marca como expiradas las reservas pendientes cuya fecha de entrada ya pasó';
+    protected $description = 'Marca como expiradas las reservas pendientes o confirmadas cuya fecha de entrada ya pasó sin hacer check-in';
 
     public function handle()
     {
-        $expiradas = \App\Models\Reserva::where('estado', 'pendiente')
+        // pendiente: nunca se confirmó el pago. confirmada: se pagó/confirmó pero el
+        // huésped nunca llegó a hacer check-in. Ambas quedan "expirada" por igual —
+        // si hubiera hecho check-in, el estado ya sería 'checkin', no 'confirmada'.
+        $expiradas = \App\Models\Reserva::whereIn('estado', ['pendiente', 'confirmada'])
             ->where('fecha_entrada', '<', now()->toDateString())
             ->get();
 

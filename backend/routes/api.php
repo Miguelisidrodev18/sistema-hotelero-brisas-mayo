@@ -104,6 +104,11 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::patch ('/pedidos/{pedido}/entregado',   [PedidoController::class, 'entregado']);
     });
 
+    // Comprobantes de pedidos pagados — admin/recepción (caja)
+    Route::middleware('role:administrador,recepcionista')->group(function () {
+        Route::get('/pedidos/pagados', [PedidoController::class, 'pagados']);
+    });
+
     // Huéspedes de reserva
     Route::post  ('/reservas/{reserva}/huespedes',           [HuespedController::class, 'store']);
     Route::delete('/reservas/{reserva}/huespedes/{huesped}', [HuespedController::class, 'destroy']);
@@ -232,6 +237,7 @@ Route::middleware('auth:sanctum')->group(function () {
         // Platos y categorías CRUD
         Route::get   ('/platos',                          [PlatoController::class, 'index']);
         Route::post  ('/platos',                          [PlatoController::class, 'store']);
+        Route::post  ('/platos/upload-imagen',            [PlatoController::class, 'subirImagen']);
         Route::put   ('/platos/{plato}',                  [PlatoController::class, 'update']);
         Route::delete('/platos/{plato}',                  [PlatoController::class, 'destroy']);
 
@@ -272,11 +278,12 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::delete('/cocheras/{cochera}',   [CocheraController::class, 'destroy']);
 
         // Sedes CRUD
-        Route::get   ('/sedes',          [SedeController::class, 'index']);
-        Route::post  ('/sedes',          [SedeController::class, 'store']);
-        Route::get   ('/sedes/{sede}',   [SedeController::class, 'show']);
-        Route::put   ('/sedes/{sede}',   [SedeController::class, 'update']);
-        Route::delete('/sedes/{sede}',   [SedeController::class, 'destroy']);
+        Route::get   ('/sedes',                [SedeController::class, 'index']);
+        Route::post  ('/sedes',                [SedeController::class, 'store']);
+        Route::post  ('/sedes/upload-imagen',  [SedeController::class, 'subirImagen']);
+        Route::get   ('/sedes/{sede}',         [SedeController::class, 'show']);
+        Route::put   ('/sedes/{sede}',         [SedeController::class, 'update']);
+        Route::delete('/sedes/{sede}',         [SedeController::class, 'destroy']);
 
         // Configuración
         Route::get('/configuracion',           [ConfiguracionController::class, 'index']);

@@ -1,8 +1,32 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Search, CheckCircle, XCircle, RefreshCw, Banknote, Smartphone, Building2, CreditCard, Clock, TrendingUp, FileDown, Printer, MessageCircle } from 'lucide-react'
+import { Search, CheckCircle, XCircle, RefreshCw, Banknote, Smartphone, Building2, CreditCard, Clock, TrendingUp, FileDown, Printer, MessageCircle, ChevronLeft, ChevronRight } from 'lucide-react'
 import { pagosApi } from '../../api/pagos'
 import { useToast } from '../../context/ToastContext'
 import axiosClient from '../../api/axiosClient'
+import { todayLocal, startOfWeekLocal, startOfMonthLocal } from '../../utils/date'
+
+const PERIODOS = [
+  { id: 'hoy',    label: 'Hoy',         desde: () => todayLocal(),       hasta: () => todayLocal() },
+  { id: 'semana', label: 'Esta semana', desde: () => startOfWeekLocal(), hasta: () => todayLocal() },
+  { id: 'mes',    label: 'Este mes',    desde: () => startOfMonthLocal(), hasta: () => todayLocal() },
+  { id: 'todo',   label: 'Todo',        desde: () => '',                 hasta: () => '' },
+]
+
+// Ventana de páginas a mostrar alrededor de la actual, con la primera/última fija
+// y "···" para los huecos — evita renderizar decenas de botones cuando hay muchas páginas.
+function pageWindow(current, last, span = 1) {
+  const pages = new Set([1, last])
+  for (let p = current - span; p <= current + span; p++) {
+    if (p >= 1 && p <= last) pages.add(p)
+  }
+  const sorted = [...pages].sort((a, b) => a - b)
+  const out = []
+  sorted.forEach((p, i) => {
+    if (i > 0 && p - sorted[i - 1] > 1) out.push(null)
+    out.push(p)
+  })
+  return out
+}
 
 const ESTADO_BADGE = {
   pendiente:  { bg: '#FEF9C3', color: '#854D0E', label: 'Pendiente' },
@@ -59,9 +83,17 @@ export default function Pagos() {
   const [meta,    setMeta]      = useState(null)
   const [loading, setLoading]   = useState(true)
   const [actionId, setActionId] = useState(null)
-  const [filters, setFilters]   = useState({ estado: '', metodo_pago: '', search: '', page: 1 })
+  const [filters, setFilters]   = useState({ estado: '', metodo_pago: '', search: '', fecha_desde: '', fecha_hasta: '', page: 1 })
+  const [periodo, setPeriodo]   = useState('todo')
   const [exporting, setExporting] = useState(false)
   const toast = useToast()
+
+  function aplicarPeriodo(id) {
+    const p = PERIODOS.find(x => x.id === id)
+    if (!p) return
+    setPeriodo(id)
+    setFilters(f => ({ ...f, fecha_desde: p.desde(), fecha_hasta: p.hasta(), page: 1 }))
+  }
 
   async function exportPdf() {
     setExporting(true)
@@ -69,6 +101,8 @@ export default function Pagos() {
       const params = {}
       if (filters.estado)      params.estado      = filters.estado
       if (filters.metodo_pago) params.metodo_pago = filters.metodo_pago
+      if (filters.fecha_desde) params.fecha_desde = filters.fecha_desde
+      if (filters.fecha_hasta) params.fecha_hasta = filters.fecha_hasta
       const { data } = await axiosClient.get('/export/pagos', { params, responseType: 'blob' })
       const url = URL.createObjectURL(new Blob([data], { type: 'application/pdf' }))
       const a = document.createElement('a'); a.href = url; a.download = 'pagos.pdf'; a.click()
@@ -83,6 +117,8 @@ export default function Pagos() {
     if (filters.estado)      params.estado      = filters.estado
     if (filters.metodo_pago) params.metodo_pago = filters.metodo_pago
     if (filters.search)      params.search      = filters.search
+    if (filters.fecha_desde) params.fecha_desde = filters.fecha_desde
+    if (filters.fecha_hasta) params.fecha_hasta = filters.fecha_hasta
     pagosApi.getAll(params)
       .then(r => { setPagos(r.data.pagos.data); setResumen(r.data.resumen); setMeta(r.data.pagos) })
       .finally(() => setLoading(false))
@@ -136,6 +172,21 @@ export default function Pagos() {
         </div>
       )}
 
+      {/* Período rápido */}
+      <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.85rem', flexWrap: 'wrap' }}>
+        {PERIODOS.map(p => (
+          <button key={p.id} onClick={() => aplicarPeriodo(p.id)}
+            style={{
+              padding: '0.45rem 1rem', borderRadius: 9999, fontSize: '0.82rem', fontWeight: 700, cursor: 'pointer',
+              border: periodo === p.id ? '1.5px solid #F5922E' : '1.5px solid #E5E7EB',
+              background: periodo === p.id ? '#FFF7ED' : 'white',
+              color: periodo === p.id ? '#C2410C' : '#6B7280',
+            }}>
+            {p.label}
+          </button>
+        ))}
+      </div>
+
       {/* Filtros */}
       <div style={{ background: 'white', border: '1px solid #E5E7EB', borderRadius: 14, padding: '1rem 1.25rem', marginBottom: '1.25rem', display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'center' }}>
         <div style={{ position: 'relative', flex: '1 1 200px' }}>
@@ -147,6 +198,11 @@ export default function Pagos() {
             style={{ ...inp, width: '100%', boxSizing: 'border-box', paddingLeft: 32 }}
           />
         </div>
+
+        <input type="date" title="Desde" style={inp} value={filters.fecha_desde}
+          onChange={e => { setPeriodo(''); setFilter('fecha_desde', e.target.value) }}/>
+        <input type="date" title="Hasta" style={inp} value={filters.fecha_hasta}
+          onChange={e => { setPeriodo(''); setFilter('fecha_hasta', e.target.value) }}/>
 
         <select style={inp} value={filters.estado} onChange={e => setFilter('estado', e.target.value)}>
           <option value="">Todos los estados</option>
@@ -173,8 +229,8 @@ export default function Pagos() {
           <FileDown size={14}/> {exporting ? 'Generando...' : 'Exportar PDF'}
         </button>
 
-        {(filters.estado || filters.metodo_pago || filters.search) && (
-          <button onClick={() => setFilters({ estado: '', metodo_pago: '', search: '', page: 1 })}
+        {(filters.estado || filters.metodo_pago || filters.search || filters.fecha_desde || filters.fecha_hasta) && (
+          <button onClick={() => { setPeriodo('todo'); setFilters({ estado: '', metodo_pago: '', search: '', fecha_desde: '', fecha_hasta: '', page: 1 }) }}
             style={{ padding: '0.55rem 0.9rem', borderRadius: 10, border: '1px solid #FEE2E2', background: '#FEF2F2', color: '#DC2626', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer' }}>
             Limpiar
           </button>
@@ -286,14 +342,31 @@ export default function Pagos() {
       </div>
 
       {/* Paginación */}
-      {meta?.last_page > 1 && (
-        <div style={{ display: 'flex', justifyContent: 'center', gap: '0.5rem', marginTop: '1rem', flexWrap: 'wrap' }}>
-          {Array.from({ length: meta.last_page }, (_, i) => i + 1).map(p => (
-            <button key={p} onClick={() => setFilters(f => ({ ...f, page: p }))}
-              style={{ width: 36, height: 36, borderRadius: 8, border: '1.5px solid #E5E7EB', cursor: 'pointer', fontWeight: filters.page === p ? 700 : 400, background: filters.page === p ? '#F5922E' : 'white', color: filters.page === p ? 'white' : '#374151', fontSize: '0.85rem' }}>
-              {p}
-            </button>
-          ))}
+      {meta && meta.total > 0 && (
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.6rem', marginTop: '1.25rem' }}>
+          {meta.last_page > 1 && (
+            <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', justifyContent: 'center' }}>
+              <button onClick={() => setFilters(f => ({ ...f, page: Math.max(1, f.page - 1) }))} disabled={filters.page <= 1}
+                style={{ width: 36, height: 36, borderRadius: 8, border: '1.5px solid #E5E7EB', cursor: filters.page <= 1 ? 'not-allowed' : 'pointer', opacity: filters.page <= 1 ? 0.4 : 1, background: 'white', color: '#374151', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <ChevronLeft size={15}/>
+              </button>
+              {pageWindow(filters.page, meta.last_page).map((p, i) => p === null ? (
+                <span key={`gap-${i}`} style={{ width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#D1D5DB' }}>···</span>
+              ) : (
+                <button key={p} onClick={() => setFilters(f => ({ ...f, page: p }))}
+                  style={{ width: 36, height: 36, borderRadius: 8, border: '1.5px solid #E5E7EB', cursor: 'pointer', fontWeight: filters.page === p ? 700 : 400, background: filters.page === p ? '#F5922E' : 'white', color: filters.page === p ? 'white' : '#374151', fontSize: '0.85rem' }}>
+                  {p}
+                </button>
+              ))}
+              <button onClick={() => setFilters(f => ({ ...f, page: Math.min(meta.last_page, f.page + 1) }))} disabled={filters.page >= meta.last_page}
+                style={{ width: 36, height: 36, borderRadius: 8, border: '1.5px solid #E5E7EB', cursor: filters.page >= meta.last_page ? 'not-allowed' : 'pointer', opacity: filters.page >= meta.last_page ? 0.4 : 1, background: 'white', color: '#374151', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <ChevronRight size={15}/>
+              </button>
+            </div>
+          )}
+          <p style={{ fontSize: '0.78rem', color: '#9CA3AF', margin: 0 }}>
+            Mostrando {meta.from}–{meta.to} de {meta.total} pagos
+          </p>
         </div>
       )}
     </div>

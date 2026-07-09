@@ -1,58 +1,117 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { Plus, Pencil, Trash2, UtensilsCrossed, Tag, ToggleLeft, ToggleRight, X, QrCode, Printer, Download } from 'lucide-react'
-import QRCode from 'react-qr-code'
+import { Plus, Pencil, Trash2, UtensilsCrossed, Tag, ToggleLeft, ToggleRight, X, QrCode, Printer, Download, ImagePlus, Loader2, Minus } from 'lucide-react'
+import { QRCode } from 'react-qr-code'
 import { restauranteApi } from '../../api/restaurante'
 import { useToast } from '../../context/ToastContext'
 
 /* ── QR Modal ─────────────────────────────────────────── */
 function QrModal({ onClose }) {
   const qrRef = useRef(null)
+  const [cantidad, setCantidad] = useState(4)
   const restaurantUrl = `${window.location.origin}/restaurant`
+  const logoUrl = `${window.location.origin}${import.meta.env.BASE_URL}images/Logo-hotel.jpeg`
 
-  function handlePrint() {
-    const content = qrRef.current?.innerHTML
-    if (!content) return
-    const win = window.open('', '_blank', 'width=500,height=650')
+  function tarjetaHTML(qrSvg, logoSrc) {
+    return `
+      <div class="ticket">
+        <div class="ticket-head">
+          <img class="logo" src="${logoSrc}" alt="Logo"/>
+          <p class="logo-line">BRISAS DE MAYO</p>
+          <p class="sub-line">Restaurante</p>
+        </div>
+        <div class="qr-frame">
+          <div class="qr-wrap">${qrSvg}</div>
+        </div>
+        <p class="scan-line">Escanea para ver el menú</p>
+        <p class="url-line">${restaurantUrl}</p>
+        <hr class="divider"/>
+        <p class="footer">Huancaya, Yauyos · Perú</p>
+      </div>
+    `
+  }
+
+  // Convierte la imagen a data URL para que quede embebida en el HTML de la
+  // ventana de impresión — así no depende de una descarga de red que podría
+  // no terminar a tiempo antes de imprimir.
+  async function logoComoDataUrl() {
+    try {
+      const res = await fetch(logoUrl)
+      const blob = await res.blob()
+      return await new Promise((resolve, reject) => {
+        const reader = new FileReader()
+        reader.onloadend = () => resolve(reader.result)
+        reader.onerror = reject
+        reader.readAsDataURL(blob)
+      })
+    } catch {
+      return logoUrl
+    }
+  }
+
+  async function handlePrint() {
+    const svg = qrRef.current?.innerHTML
+    if (!svg) return
+    // window.open debe llamarse de inmediato (gesto síncrono del clic) para
+    // que el navegador no lo bloquee como popup — el resto puede ser async.
+    const win = window.open('', '_blank', 'width=900,height=700')
+    if (!win) return
+    const logoSrc = await logoComoDataUrl()
+    const tarjetas = Array.from({ length: cantidad }, () => tarjetaHTML(svg, logoSrc)).join('')
     win.document.write(`
       <!DOCTYPE html>
       <html>
       <head>
         <title>QR Restaurante — Brisas de Mayo</title>
         <style>
-          * { margin: 0; padding: 0; box-sizing: border-box; }
-          body { font-family: 'Courier New', monospace; background: white; display: flex; align-items: center; justify-content: center; min-height: 100vh; }
-          .ticket {
-            width: 220px;
-            border: 2px dashed #3D1A06;
-            border-radius: 12px;
-            padding: 24px 20px;
-            text-align: center;
+          * {
+            margin: 0; padding: 0; box-sizing: border-box;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+            color-adjust: exact;
           }
-          .logo-line { font-size: 13px; font-weight: 900; color: #3D1A06; letter-spacing: 0.05em; margin-bottom: 2px; }
-          .sub-line   { font-size: 10px; color: #7B4019; margin-bottom: 16px; }
-          .qr-wrap    { display: flex; justify-content: center; margin-bottom: 16px; }
-          .scan-line  { font-size: 11px; font-weight: 700; color: #3D1A06; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 6px; }
-          .url-line   { font-size: 8px; color: #9CA3AF; word-break: break-all; }
-          .divider    { border: none; border-top: 1px dashed #D1D5DB; margin: 14px 0; }
-          .footer     { font-size: 9px; color: #9CA3AF; }
+          @page { size: A4 portrait; margin: 10mm; }
+          body { font-family: 'Segoe UI', Arial, sans-serif; background: white; }
+          .grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 8mm;
+          }
+          .ticket {
+            border: 2px dashed #D4A843;
+            border-radius: 14px;
+            overflow: hidden;
+            text-align: center;
+            break-inside: avoid;
+            background: #FFFDF9;
+          }
+          .ticket-head {
+            background: linear-gradient(135deg,#3D1A06,#7B4019);
+            padding: 14px 14px 12px;
+          }
+          .logo { height: 40px; width: 40px; object-fit: cover; border-radius: 50%; border: 2px solid #D4A843; display: block; margin: 0 auto 6px; background: white; }
+          .logo-line { font-size: 13px; font-weight: 900; color: white; letter-spacing: 0.05em; margin-bottom: 2px; }
+          .sub-line   { font-size: 10px; color: #D4A843; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
+          .qr-frame   { padding: 16px 16px 4px; }
+          .qr-wrap    { display: flex; justify-content: center; padding: 10px; background: white; border-radius: 10px; border: 1px solid #F3E3C6; }
+          .scan-line  { font-size: 11px; font-weight: 800; color: #3D1A06; text-transform: uppercase; letter-spacing: 0.08em; margin: 10px 0 4px; }
+          .url-line   { font-size: 8px; color: #9CA3AF; word-break: break-all; padding: 0 10px; }
+          .divider    { border: none; border-top: 1px dashed #E4D6C3; margin: 12px 14px 8px; }
+          .footer     { font-size: 9px; color: #7B4019; font-weight: 600; padding-bottom: 12px; }
         </style>
       </head>
       <body>
-        <div class="ticket">
-          <p class="logo-line">BRISAS DE MAYO</p>
-          <p class="sub-line">Restaurante</p>
-          <div class="qr-wrap">${content}</div>
-          <p class="scan-line">Escanea para ver el menú</p>
-          <p class="url-line">${restaurantUrl}</p>
-          <hr class="divider"/>
-          <p class="footer">Huancaya, Yauyos · Perú</p>
-        </div>
+        <div class="grid">${tarjetas}</div>
       </body>
       </html>
     `)
     win.document.close()
-    win.focus()
-    setTimeout(() => { win.print(); win.close() }, 400)
+    // El logo ya va embebido como data URL, así que onload resuelve casi de
+    // inmediato — más confiable que un temporizador fijo.
+    win.onload = () => {
+      win.focus()
+      win.print()
+      win.close()
+    }
   }
 
   function handleDownload() {
@@ -97,31 +156,56 @@ function QrModal({ onClose }) {
 
         {/* QR preview — aspecto de tarjeta de mesa */}
         <div style={{ padding: '2rem', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-          <div style={{ border: '2px dashed #D1D5DB', borderRadius: 16, padding: '1.75rem 2rem', textAlign: 'center', background: '#FAFAFA', width: '100%', maxWidth: 280 }}>
-            <p style={{ fontWeight: 900, fontSize: '0.95rem', color: '#3D1A06', letterSpacing: '0.04em', margin: '0 0 2px' }}>BRISAS DE MAYO</p>
-            <p style={{ fontSize: '0.7rem', color: '#7B4019', margin: '0 0 1.25rem' }}>Restaurante</p>
-            <div ref={qrRef} style={{ display: 'flex', justifyContent: 'center', marginBottom: '1.25rem' }}>
-              <QRCode
-                value={restaurantUrl}
-                size={180}
-                style={{ height: 'auto', maxWidth: '100%', width: '100%' }}
-                viewBox="0 0 256 256"
-                fgColor="#3D1A06"
-              />
+          <div style={{ border: '2px dashed #D4A843', borderRadius: 16, overflow: 'hidden', textAlign: 'center', background: '#FFFDF9', width: '100%', maxWidth: 280 }}>
+            <div style={{ background: 'linear-gradient(135deg,#3D1A06,#7B4019)', padding: '1.1rem 1rem 0.9rem' }}>
+              <img src="/images/Logo-hotel.jpeg" alt="Logo"
+                style={{ height: 44, width: 44, objectFit: 'cover', borderRadius: '50%', border: '2px solid #D4A843', display: 'block', margin: '0 auto 6px', background: 'white' }}
+                onError={e => { e.currentTarget.style.display = 'none' }}/>
+              <p style={{ fontWeight: 900, fontSize: '0.95rem', color: 'white', letterSpacing: '0.04em', margin: '0 0 2px' }}>BRISAS DE MAYO</p>
+              <p style={{ fontSize: '0.68rem', color: '#D4A843', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', margin: 0 }}>Restaurante</p>
             </div>
-            <p style={{ fontSize: '0.72rem', fontWeight: 800, color: '#3D1A06', textTransform: 'uppercase', letterSpacing: '0.1em', margin: '0 0 4px' }}>Escanea para ver el menú</p>
-            <p style={{ fontSize: '0.65rem', color: '#9CA3AF', wordBreak: 'break-all', margin: 0 }}>{restaurantUrl}</p>
+            <div style={{ padding: '1.25rem 1.5rem 0.25rem' }}>
+              <div ref={qrRef} style={{ display: 'flex', justifyContent: 'center', padding: 10, background: 'white', borderRadius: 10, border: '1px solid #F3E3C6' }}>
+                <QRCode
+                  value={restaurantUrl}
+                  size={170}
+                  style={{ height: 'auto', maxWidth: '100%', width: '100%' }}
+                  viewBox="0 0 256 256"
+                  fgColor="#3D1A06"
+                />
+              </div>
+              <p style={{ fontSize: '0.72rem', fontWeight: 800, color: '#3D1A06', textTransform: 'uppercase', letterSpacing: '0.1em', margin: '0.75rem 0 4px' }}>Escanea para ver el menú</p>
+              <p style={{ fontSize: '0.65rem', color: '#9CA3AF', wordBreak: 'break-all', margin: '0 0 1rem' }}>{restaurantUrl}</p>
+            </div>
           </div>
 
-          <p style={{ fontSize: '0.75rem', color: '#9CA3AF', marginTop: '1rem', textAlign: 'center' }}>
-            Imprime uno por mesa · Soporta cualquier app de cámara
+          {/* Cantidad a imprimir */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', marginTop: '1.25rem', background: '#FFF7ED', border: '1px solid #FED7AA', borderRadius: 12, padding: '0.6rem 0.9rem' }}>
+            <span style={{ fontSize: '0.82rem', fontWeight: 700, color: '#7B4019' }}>Tarjetas a imprimir</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <button type="button" onClick={() => setCantidad(c => Math.max(1, c - 1))}
+                style={{ width: 28, height: 28, borderRadius: 8, border: 'none', background: 'white', boxShadow: '0 1px 3px rgba(0,0,0,0.12)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#3D1A06' }}>
+                <Minus size={13}/>
+              </button>
+              <input type="number" min="1" max="60" value={cantidad}
+                onChange={e => setCantidad(Math.min(60, Math.max(1, Number(e.target.value) || 1)))}
+                style={{ width: 40, textAlign: 'center', fontWeight: 800, fontSize: '0.9rem', color: '#3D1A06', border: 'none', background: 'transparent', fontFamily: 'inherit' }}/>
+              <button type="button" onClick={() => setCantidad(c => Math.min(60, c + 1))}
+                style={{ width: 28, height: 28, borderRadius: 8, border: 'none', background: '#F5922E', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white' }}>
+                <Plus size={13}/>
+              </button>
+            </div>
+          </div>
+
+          <p style={{ fontSize: '0.75rem', color: '#9CA3AF', marginTop: '0.85rem', textAlign: 'center' }}>
+            Una tarjeta por mesa · Soporta cualquier app de cámara
           </p>
 
           {/* Acciones */}
           <div style={{ display: 'flex', gap: '0.75rem', marginTop: '1.25rem', width: '100%' }}>
             <button onClick={handlePrint}
               style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, padding: '0.8rem', borderRadius: 12, border: 'none', background: 'linear-gradient(135deg,#3D1A06,#7B4019)', color: 'white', fontWeight: 700, fontSize: '0.875rem', cursor: 'pointer', boxShadow: '0 4px 16px rgba(61,26,6,0.3)' }}>
-              <Printer size={16}/> Imprimir
+              <Printer size={16}/> Imprimir {cantidad}
             </button>
             <button onClick={handleDownload}
               style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, padding: '0.8rem', borderRadius: 12, border: '1.5px solid #E5E7EB', background: 'white', color: '#374151', fontWeight: 700, fontSize: '0.875rem', cursor: 'pointer' }}>
@@ -144,10 +228,35 @@ function ModalPlato({ plato, categorias, onClose, onSaved }) {
     imagen_url:   plato?.imagen_url   ?? '',
     disponible:   plato?.disponible   ?? true,
   })
-  const [saving, setSaving] = useState(false)
-  const [errs, setErrs]     = useState({})
+  const [saving, setSaving]       = useState(false)
+  const [errs, setErrs]           = useState({})
+  const [uploading, setUploading] = useState(false)
+  const [localPreview, setLocalPreview] = useState(null)
+  const fileRef = useRef(null)
 
   function set(k, v) { setForm(p => ({ ...p, [k]: v })) }
+
+  // Libera el blob temporal cuando se reemplaza por otro o por la URL final del servidor
+  useEffect(() => () => { if (localPreview) URL.revokeObjectURL(localPreview) }, [localPreview])
+
+  async function handleFile(e) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setLocalPreview(URL.createObjectURL(file))
+    setUploading(true)
+    try {
+      const fd = new FormData()
+      fd.append('image', file)
+      const { data } = await restauranteApi.subirImagenPlato(fd)
+      set('imagen_url', data.url)
+      setLocalPreview(null)
+    } catch {
+      toast.error('No se pudo subir la imagen.')
+    } finally {
+      setUploading(false)
+      if (fileRef.current) fileRef.current.value = ''
+    }
+  }
 
   async function handleSubmit(e) {
     e.preventDefault()
@@ -206,13 +315,37 @@ function ModalPlato({ plato, categorias, onClose, onSaved }) {
             </div>
           </div>
           <div>
-            <label className="field-label">URL de imagen (opcional)</label>
-            <input className="field-input" type="url" value={form.imagen_url} onChange={e => set('imagen_url', e.target.value)} placeholder="https://..."/>
+            <label className="field-label">Foto del plato (opcional)</label>
+            <div style={{ display: 'flex', gap: '0.85rem', alignItems: 'flex-start' }}>
+              <div style={{ position: 'relative', width: 84, height: 84, borderRadius: 12, overflow: 'hidden', flexShrink: 0, background: '#F3F4F6', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid #E5E7EB' }}>
+                {(localPreview || form.imagen_url) ? (
+                  <img src={localPreview || form.imagen_url} alt=""
+                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                    onError={e => { e.currentTarget.style.display = 'none' }}/>
+                ) : (
+                  <UtensilsCrossed size={22} style={{ color: '#D1D5DB' }}/>
+                )}
+                {uploading && (
+                  <div style={{ position: 'absolute', inset: 0, background: 'rgba(255,255,255,0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <Loader2 size={18} style={{ color: '#F5922E', animation: 'spin 1s linear infinite' }}/>
+                  </div>
+                )}
+              </div>
+              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '0.5rem', minWidth: 0 }}>
+                <input type="file" accept="image/*" ref={fileRef} onChange={handleFile} style={{ display: 'none' }}/>
+                <button type="button" onClick={() => fileRef.current?.click()} disabled={uploading}
+                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, padding: '0.6rem', borderRadius: 10, border: '2px dashed #D1D5DB', background: 'white', color: '#374151', fontWeight: 600, fontSize: '0.82rem', cursor: uploading ? 'not-allowed' : 'pointer', opacity: uploading ? 0.7 : 1, fontFamily: 'inherit' }}>
+                  {uploading ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }}/> : <ImagePlus size={14}/>}
+                  {uploading ? 'Subiendo...' : 'Subir foto'}
+                </button>
+                <input className="field-input" type="url" value={form.imagen_url} onChange={e => set('imagen_url', e.target.value)} placeholder="...o pega una URL de imagen" style={{ fontSize: '0.78rem' }}/>
+              </div>
+            </div>
             <ErrMsg f="imagen_url"/>
           </div>
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', paddingTop: '0.5rem' }}>
             <button type="button" onClick={onClose} className="btn-secondary">Cancelar</button>
-            <button type="submit" disabled={saving} className="btn-primary">{saving ? 'Guardando...' : 'Guardar'}</button>
+            <button type="submit" disabled={saving || uploading} className="btn-primary">{saving ? 'Guardando...' : 'Guardar'}</button>
           </div>
         </form>
       </div>

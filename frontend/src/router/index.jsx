@@ -42,6 +42,7 @@ import DashboardGerencial  from '../pages/gerente/DashboardGerencial'
 import Cocheras            from '../pages/admin/Cocheras'
 import MisCocheras         from '../pages/cliente/MisCocheras'
 import Cocina              from '../pages/cocina/Cocina'
+import ComprobantesPedidos from '../pages/recepcion/ComprobantesPedidos'
 
 // Placeholder for unbuilt pages
 function Placeholder({ title }) {
@@ -120,6 +121,7 @@ export default function AppRouter() {
             <Route path="tarifas"         element={<TarifasTemporada />} />
             <Route path="descuentos"      element={<CodigosDescuento />} />
             <Route path="platos"          element={<Platos />} />
+            <Route path="comprobantes"    element={<ComprobantesPedidos />} />
           </Route>
 
           {/* ── Recepcionista ── */}
@@ -133,6 +135,7 @@ export default function AppRouter() {
             <Route path="reservas"        element={<ReservasRecepcion />} />
             <Route path="pagos"           element={<Pagos />} />
             <Route path="caja"            element={<CajaDiaria />} />
+            <Route path="comprobantes"    element={<ComprobantesPedidos />} />
           </Route>
 
           {/* ── Cliente ── */}

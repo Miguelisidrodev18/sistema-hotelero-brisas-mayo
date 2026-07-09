@@ -74,6 +74,18 @@ class PedidoController extends Controller
         return response()->json($q->paginate(20));
     }
 
+    // GET /pedidos/pagados — admin/recepción: comprobantes de pedidos pagados (para impresión automática en caja)
+    public function pagados()
+    {
+        $pedidos = Pedido::where('pagado', true)
+            ->with(['items.plato', 'user'])
+            ->orderBy('id', 'asc')
+            ->limit(50)
+            ->get();
+
+        return response()->json($pedidos);
+    }
+
     // PATCH /pedidos/{pedido}/preparando
     public function preparando(Pedido $pedido)
     {

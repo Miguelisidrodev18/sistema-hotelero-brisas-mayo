@@ -1,4 +1,5 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
+import { ImagePlus, Loader2 } from 'lucide-react'
 import { sedesApi } from '../../api/sedes'
 
 const EMPTY = { nombre: '', descripcion: '', direccion: '', ciudad: '', telefono: '', email: '', logo_url: '', vista_principal: '', activo: true }
@@ -17,9 +18,72 @@ function Modal({ title, onClose, children }) {
   )
 }
 
+const inp = { width: '100%', boxSizing: 'border-box', border: '1.5px solid #E5E7EB', borderRadius: 8, padding: '0.6rem 0.8rem', fontSize: '0.875rem', outline: 'none' }
+const lbl = { display: 'block', fontSize: '0.75rem', fontWeight: 600, color: '#374151', marginBottom: '0.3rem' }
+
+function ImageField({ label, value, onChange, onUploadingChange }) {
+  const [uploading, setUploading]       = useState(false)
+  const [localPreview, setLocalPreview] = useState(null)
+  const fileRef = useRef(null)
+
+  useEffect(() => () => { if (localPreview) URL.revokeObjectURL(localPreview) }, [localPreview])
+
+  async function handleFile(e) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setLocalPreview(URL.createObjectURL(file))
+    setUploading(true); onUploadingChange?.(true)
+    try {
+      const fd = new FormData()
+      fd.append('image', file)
+      const { data } = await sedesApi.subirImagen(fd)
+      onChange(data.url)
+      setLocalPreview(null)
+    } catch {
+      alert('No se pudo subir la imagen.')
+    } finally {
+      setUploading(false); onUploadingChange?.(false)
+      if (fileRef.current) fileRef.current.value = ''
+    }
+  }
+
+  const preview = localPreview || value
+
+  return (
+    <div>
+      <label style={lbl}>{label}</label>
+      <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'flex-start' }}>
+        <div style={{ position: 'relative', width: 72, height: 72, borderRadius: 10, overflow: 'hidden', flexShrink: 0, background: '#F3F4F6', border: '1px solid #E5E7EB', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          {preview ? (
+            <img src={preview} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={e => { e.currentTarget.style.display = 'none' }}/>
+          ) : (
+            <span style={{ fontSize: '1.3rem', opacity: 0.3 }}>🏨</span>
+          )}
+          {uploading && (
+            <div style={{ position: 'absolute', inset: 0, background: 'rgba(255,255,255,0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <Loader2 size={16} style={{ color: '#F5922E', animation: 'spin 1s linear infinite' }}/>
+            </div>
+          )}
+        </div>
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '0.5rem', minWidth: 0 }}>
+          <input type="file" accept="image/*" ref={fileRef} onChange={handleFile} style={{ display: 'none' }}/>
+          <button type="button" onClick={() => fileRef.current?.click()} disabled={uploading}
+            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '0.55rem', borderRadius: 8, border: '2px dashed #D1D5DB', background: 'white', color: '#374151', fontWeight: 600, fontSize: '0.8rem', cursor: uploading ? 'not-allowed' : 'pointer', opacity: uploading ? 0.7 : 1, fontFamily: 'inherit' }}>
+            {uploading ? <Loader2 size={13} style={{ animation: 'spin 1s linear infinite' }}/> : <ImagePlus size={13}/>}
+            {uploading ? 'Subiendo...' : 'Subir foto'}
+          </button>
+          <input style={{ ...inp, fontSize: '0.78rem' }} value={value} onChange={e => onChange(e.target.value)} placeholder="...o pega una URL"/>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function SedeForm({ initial, onSave, onCancel, loading }) {
   const [form, setForm] = useState(initial)
   const [errors, setErrors] = useState({})
+  const [uploadingLogo, setUploadingLogo] = useState(false)
+  const [uploadingVista, setUploadingVista] = useState(false)
 
   function set(field, value) { setForm(f => ({ ...f, [field]: value })) }
 
@@ -33,8 +97,6 @@ function SedeForm({ initial, onSave, onCancel, loading }) {
     }
   }
 
-  const inp = { width: '100%', boxSizing: 'border-box', border: '1.5px solid #E5E7EB', borderRadius: 8, padding: '0.6rem 0.8rem', fontSize: '0.875rem', outline: 'none' }
-  const lbl = { display: 'block', fontSize: '0.75rem', fontWeight: 600, color: '#374151', marginBottom: '0.3rem' }
   const err = (f) => errors[f]?.[0] ? <p style={{ color: '#DC2626', fontSize: '0.72rem', marginTop: '0.2rem' }}>{errors[f][0]}</p> : null
 
   return (
@@ -67,14 +129,8 @@ function SedeForm({ initial, onSave, onCancel, loading }) {
         <input style={inp} type="email" value={form.email} onChange={e => set('email', e.target.value)} placeholder="sede@brisasdemayo.com"/>
         {err('email')}
       </div>
-      <div>
-        <label style={lbl}>URL del logo</label>
-        <input style={inp} value={form.logo_url} onChange={e => set('logo_url', e.target.value)} placeholder="https://..."/>
-      </div>
-      <div>
-        <label style={lbl}>URL imagen principal</label>
-        <input style={inp} value={form.vista_principal} onChange={e => set('vista_principal', e.target.value)} placeholder="https://..."/>
-      </div>
+      <ImageField label="Logo de la sede" value={form.logo_url} onChange={v => set('logo_url', v)} onUploadingChange={setUploadingLogo}/>
+      <ImageField label="Foto principal" value={form.vista_principal} onChange={v => set('vista_principal', v)} onUploadingChange={setUploadingVista}/>
       <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.875rem', cursor: 'pointer' }}>
         <input type="checkbox" checked={form.activo} onChange={e => set('activo', e.target.checked)}/>
         Sede activa
@@ -84,8 +140,8 @@ function SedeForm({ initial, onSave, onCancel, loading }) {
           style={{ padding: '0.6rem 1.25rem', borderRadius: 8, border: '1.5px solid #E5E7EB', background: 'white', cursor: 'pointer', fontSize: '0.875rem' }}>
           Cancelar
         </button>
-        <button type="submit" disabled={loading}
-          style={{ padding: '0.6rem 1.25rem', borderRadius: 8, border: 'none', background: '#F5922E', color: 'white', fontWeight: 600, cursor: 'pointer', fontSize: '0.875rem', opacity: loading ? 0.7 : 1 }}>
+        <button type="submit" disabled={loading || uploadingLogo || uploadingVista}
+          style={{ padding: '0.6rem 1.25rem', borderRadius: 8, border: 'none', background: '#F5922E', color: 'white', fontWeight: 600, cursor: 'pointer', fontSize: '0.875rem', opacity: (loading || uploadingLogo || uploadingVista) ? 0.7 : 1 }}>
           {loading ? 'Guardando...' : initial.id ? 'Actualizar' : 'Crear sede'}
         </button>
       </div>

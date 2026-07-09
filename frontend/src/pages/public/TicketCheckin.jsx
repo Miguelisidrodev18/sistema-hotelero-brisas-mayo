@@ -152,7 +152,7 @@ export default function TicketCheckin() {
         {/* Logo + nombre */}
         <div style={{ textAlign: 'center', marginBottom: 6 }}>
           <img
-            src={`${import.meta.env.BASE_URL}images/Logo-hotel.jpeg`}
+            src={`${import.meta.env.BASE_URL}images/Logo-hotel-bn.png`}
             alt="Logo"
             style={{ height: 60, objectFit: 'contain', display: 'block', margin: '0 auto 5px' }}
             onError={e => { e.currentTarget.style.display = 'none' }}

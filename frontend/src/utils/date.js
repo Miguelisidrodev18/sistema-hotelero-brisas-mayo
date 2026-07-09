@@ -10,3 +10,18 @@ export function toLocalYMD(date = new Date()) {
 export function todayLocal() {
   return toLocalYMD(new Date())
 }
+
+// Lunes de la semana actual (en local, no UTC)
+export function startOfWeekLocal(date = new Date()) {
+  const d = new Date(date)
+  const dow = d.getDay() // 0=domingo..6=sábado
+  const diff = dow === 0 ? -6 : 1 - dow // retrocede hasta el lunes
+  d.setDate(d.getDate() + diff)
+  return toLocalYMD(d)
+}
+
+// Día 1 del mes actual (en local, no UTC)
+export function startOfMonthLocal(date = new Date()) {
+  const d = new Date(date.getFullYear(), date.getMonth(), 1)
+  return toLocalYMD(d)
+}

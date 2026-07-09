@@ -4,10 +4,23 @@ namespace App\Http\Controllers;
 
 use App\Models\Sede;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
 class SedeController extends Controller
 {
+    // POST /sedes/upload-imagen — sube el logo o la foto principal de una sede y devuelve su URL pública
+    public function subirImagen(Request $request)
+    {
+        $request->validate([
+            'image' => 'required|image|max:4096',
+        ]);
+
+        $path = $request->file('image')->store('sedes', 'public');
+
+        return response()->json(['url' => Storage::disk('public')->url($path)], 201);
+    }
+
     public function index()
     {
         return response()->json(Sede::withCount('habitaciones')->orderBy('nombre')->get());

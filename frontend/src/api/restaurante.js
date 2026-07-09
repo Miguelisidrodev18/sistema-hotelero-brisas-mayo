@@ -10,9 +10,12 @@ export const restauranteApi = {
   preparando: (id)         => axiosClient.patch(`/pedidos/${id}/preparando`),
   listo:   (id)            => axiosClient.patch(`/pedidos/${id}/listo`),
   entregado: (id)          => axiosClient.patch(`/pedidos/${id}/entregado`),
+  // caja / recepción — comprobantes de pedidos pagados
+  pagados: ()              => axiosClient.get('/pedidos/pagados'),
   // admin
   platos:  ()              => axiosClient.get('/platos'),
   storePlato: (d)          => axiosClient.post('/platos', d),
+  subirImagenPlato: (fd)   => axiosClient.post('/platos/upload-imagen', fd, { headers: { 'Content-Type': 'multipart/form-data' } }),
   updatePlato: (id, d)     => axiosClient.put(`/platos/${id}`, d),
   deletePlato: (id)        => axiosClient.delete(`/platos/${id}`),
   categorias: ()           => axiosClient.get('/categorias-plato'),

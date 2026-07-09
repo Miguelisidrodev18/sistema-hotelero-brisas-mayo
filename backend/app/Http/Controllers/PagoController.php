@@ -27,26 +27,41 @@ class PagoController extends Controller
         if ($request->filled('metodo_pago')) {
             $q->where('metodo_pago', $request->metodo_pago);
         }
+        $this->aplicarFechaYBusqueda($q, $request);
+
+        $pagos = $q->paginate($request->integer('per_page', 20));
+
+        // Resumen — respeta el rango de fechas y la búsqueda (no el estado/método,
+        // ya que el resumen desglosa precisamente por estado) para reflejar el período visible.
+        $resumenQ = Pago::query();
+        $this->aplicarFechaYBusqueda($resumenQ, $request);
+
+        $resumen = [
+            'total'       => (clone $resumenQ)->count(),
+            'pendiente'   => (clone $resumenQ)->where('estado', 'pendiente')->count(),
+            'verificado'  => (clone $resumenQ)->where('estado', 'verificado')->count(),
+            'rechazado'   => (clone $resumenQ)->where('estado', 'rechazado')->count(),
+            'monto_total' => (clone $resumenQ)->where('estado', 'verificado')->sum('monto'),
+        ];
+
+        return response()->json(['pagos' => $pagos, 'resumen' => $resumen]);
+    }
+
+    private function aplicarFechaYBusqueda($query, Request $request): void
+    {
+        if ($request->filled('fecha_desde')) {
+            $query->whereDate('fecha_pago', '>=', $request->fecha_desde);
+        }
+        if ($request->filled('fecha_hasta')) {
+            $query->whereDate('fecha_pago', '<=', $request->fecha_hasta);
+        }
         if ($request->filled('search')) {
             $search = $request->search;
-            $q->whereHas('reserva', fn ($r) =>
+            $query->whereHas('reserva', fn ($r) =>
                 $r->where('codigo', 'like', "%{$search}%")
                   ->orWhereHas('cliente', fn ($c) => $c->where('name', 'like', "%{$search}%"))
             );
         }
-
-        $pagos = $q->paginate(20);
-
-        // Resumen
-        $resumen = [
-            'total'      => Pago::count(),
-            'pendiente'  => Pago::where('estado', 'pendiente')->count(),
-            'verificado' => Pago::where('estado', 'verificado')->count(),
-            'rechazado'  => Pago::where('estado', 'rechazado')->count(),
-            'monto_total' => Pago::where('estado', 'verificado')->sum('monto'),
-        ];
-
-        return response()->json(['pagos' => $pagos, 'resumen' => $resumen]);
     }
 
     // GET /reservas/{reserva}/pago — detalle de pago de una reserva

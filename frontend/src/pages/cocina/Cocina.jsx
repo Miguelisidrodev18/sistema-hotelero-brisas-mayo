@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { ChefHat, Clock, CheckCircle, Package, UtensilsCrossed, RefreshCw } from 'lucide-react'
 import { restauranteApi } from '../../api/restaurante'
+import { imprimirThermalTicket } from '../../utils/printTicket'
 
 const COLS = [
   { estado: 'pendiente',  label: 'Nuevos',     bg: '#FFFBEB', border: '#FCD34D', badge: '#F59E0B', icon: Clock },
@@ -134,7 +135,7 @@ export default function Cocina() {
             const nuevo = data.find(p => p.id === maxId)
             if (nuevo && ticketRef.current) {
               ticketRef.current.innerText = buildTicket(nuevo)
-              window.print()
+              imprimirThermalTicket()
             }
           }
           return maxId

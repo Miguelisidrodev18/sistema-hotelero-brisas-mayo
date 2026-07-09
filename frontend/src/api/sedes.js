@@ -7,4 +7,5 @@ export const sedesApi = {
   create:      (data)       => axiosClient.post('/sedes', data),
   update:      (id, data)   => axiosClient.put(`/sedes/${id}`, data),
   remove:      (id)         => axiosClient.delete(`/sedes/${id}`),
+  subirImagen: (fd)         => axiosClient.post('/sedes/upload-imagen', fd, { headers: { 'Content-Type': 'multipart/form-data' } }),
 }

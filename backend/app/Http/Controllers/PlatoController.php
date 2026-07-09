@@ -5,9 +5,22 @@ namespace App\Http\Controllers;
 use App\Models\CategoriaPlato;
 use App\Models\Plato;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 
 class PlatoController extends Controller
 {
+    // POST /platos/upload-imagen — sube la foto de un plato y devuelve su URL pública
+    public function subirImagen(Request $request)
+    {
+        $request->validate([
+            'image' => 'required|image|max:4096',
+        ]);
+
+        $path = $request->file('image')->store('platos', 'public');
+
+        return response()->json(['url' => Storage::disk('public')->url($path)], 201);
+    }
+
     // GET /menu — público, solo platos disponibles con su categoría
     public function menu()
     {
