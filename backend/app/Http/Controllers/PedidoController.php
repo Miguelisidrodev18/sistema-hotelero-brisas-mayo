@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Mesa;
 use App\Models\Pedido;
 use App\Models\PedidoItem;
 use App\Models\Plato;
@@ -20,6 +21,7 @@ class PedidoController extends Controller
             'items.*.notas'    => 'nullable|string|max:200',
             'notas'          => 'nullable|string|max:500',
             'metodo_pago'    => 'nullable|string|max:30',
+            'mesa_id'        => 'nullable|exists:mesas,id',
         ]);
 
         $total = 0;
@@ -39,6 +41,7 @@ class PedidoController extends Controller
 
         $pedido = Pedido::create([
             'user_id'     => auth()->id(),
+            'mesa_id'     => $data['mesa_id'] ?? null,
             'codigo'      => strtoupper(Str::random(8)),
             'estado'      => 'pendiente',
             'metodo_pago' => $data['metodo_pago'] ?? null,
@@ -52,14 +55,21 @@ class PedidoController extends Controller
             PedidoItem::create($item);
         }
 
-        return response()->json($pedido->load(['items.plato', 'user']), 201);
+        if (!empty($data['mesa_id'])) {
+            $mesa = Mesa::find($data['mesa_id']);
+            if ($mesa && $mesa->estado === 'libre') {
+                $mesa->update(['estado' => 'ocupada']);
+            }
+        }
+
+        return response()->json($pedido->load(['items.plato', 'user', 'mesa']), 201);
     }
 
     // GET /pedidos — cocina: activos ordenados por fecha asc
     public function index()
     {
         $pedidos = Pedido::whereIn('estado', ['pendiente', 'preparando', 'listo'])
-            ->with(['items.plato', 'user'])
+            ->with(['items.plato', 'user', 'mesa'])
             ->orderBy('created_at', 'asc')
             ->get();
 
@@ -78,7 +88,7 @@ class PedidoController extends Controller
     public function pagados()
     {
         $pedidos = Pedido::where('pagado', true)
-            ->with(['items.plato', 'user'])
+            ->with(['items.plato', 'user', 'mesa'])
             ->orderBy('id', 'asc')
             ->limit(50)
             ->get();
@@ -91,7 +101,7 @@ class PedidoController extends Controller
     {
         abort_if($pedido->estado !== 'pendiente', 422, 'Solo se pueden preparar pedidos pendientes.');
         $pedido->update(['estado' => 'preparando']);
-        return response()->json($pedido->fresh()->load(['items.plato', 'user']));
+        return response()->json($pedido->fresh()->load(['items.plato', 'user', 'mesa']));
     }
 
     // PATCH /pedidos/{pedido}/listo
@@ -99,7 +109,7 @@ class PedidoController extends Controller
     {
         abort_if($pedido->estado !== 'preparando', 422, 'El pedido debe estar en preparación.');
         $pedido->update(['estado' => 'listo']);
-        return response()->json($pedido->fresh()->load(['items.plato', 'user']));
+        return response()->json($pedido->fresh()->load(['items.plato', 'user', 'mesa']));
     }
 
     // PATCH /pedidos/{pedido}/entregado

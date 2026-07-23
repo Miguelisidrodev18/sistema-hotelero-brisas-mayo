@@ -26,7 +26,14 @@ function PedidoCard({ pedido, onAction }) {
     <div style={{ background: 'white', borderRadius: 14, border: '1px solid #E5E7EB', padding: '1rem', marginBottom: '0.75rem', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
-        <span style={{ fontWeight: 800, fontSize: '0.95rem', color: '#3D1A06', letterSpacing: '0.03em' }}>#{pedido.codigo}</span>
+        <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <span style={{ fontWeight: 800, fontSize: '0.95rem', color: '#3D1A06', letterSpacing: '0.03em' }}>#{pedido.codigo}</span>
+          {pedido.mesa && (
+            <span style={{ background: '#FFF7ED', color: '#EA580C', fontSize: '0.68rem', fontWeight: 800, padding: '2px 8px', borderRadius: 999 }}>
+              🪑 Mesa {pedido.mesa.numero}
+            </span>
+          )}
+        </span>
         <span style={{ fontSize: '0.72rem', color: '#9CA3AF', display: 'flex', alignItems: 'center', gap: 4 }}>
           <Clock size={11}/> {formatHora(pedido.created_at)}
         </span>

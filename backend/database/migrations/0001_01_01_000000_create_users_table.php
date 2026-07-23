@@ -17,7 +17,7 @@ return new class extends Migration
             $table->string('email')->unique();
             $table->string('dni', 20)->nullable()->unique();
             $table->string('telefono', 20)->nullable();
-            $table->enum('role', ['cliente', 'recepcionista', 'administrador', 'contador', 'gerente', 'cocinero'])->default('cliente');
+            $table->enum('role', ['cliente', 'recepcionista', 'administrador', 'contador', 'gerente', 'cocinero', 'mozo'])->default('cliente');
             $table->boolean('activo')->default(true);
             $table->timestamp('email_verified_at')->nullable();
             $table->string('password');

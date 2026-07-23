@@ -1,13 +1,15 @@
 import { useState, useEffect, useCallback } from 'react'
 import { usuariosApi } from '../../api/usuarios'
 
-const ROLES = ['cliente', 'recepcionista', 'administrador', 'contador', 'gerente']
+const ROLES = ['cliente', 'recepcionista', 'administrador', 'contador', 'gerente', 'cocinero', 'mozo']
 const ROLE_COLORS = {
   administrador: { bg: '#FEF3C7', color: '#92400E' },
   recepcionista: { bg: '#DBEAFE', color: '#1E40AF' },
   contador:      { bg: '#D1FAE5', color: '#065F46' },
   gerente:       { bg: '#EDE9FE', color: '#5B21B6' },
   cliente:       { bg: '#F3F4F6', color: '#374151' },
+  cocinero:      { bg: '#FFE4E6', color: '#9F1239' },
+  mozo:          { bg: '#DCFCE7', color: '#166534' },
 }
 
 const EMPTY = { name: '', email: '', dni: '', telefono: '', role: 'cliente', password: '', activo: true }

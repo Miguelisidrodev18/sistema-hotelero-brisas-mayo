@@ -5,6 +5,7 @@ import {
   LayoutDashboard, BedDouble, Building2, Users, Settings,
   CalendarDays, BarChart3, DollarSign, UserCircle, ChevronLeft, ChevronRight,
   X, LogOut, CreditCard, Car, Coffee, Tag, Wallet, ChefHat, UtensilsCrossed, BadgePercent, Receipt,
+  LayoutGrid,
 } from 'lucide-react'
 
 const NAV = {
@@ -20,6 +21,8 @@ const NAV = {
     { icon: BadgePercent,    label: 'Descuentos',    to: '/admin/descuentos' },
     { icon: UtensilsCrossed, label: 'Platos',        to: '/admin/platos' },
     { icon: ChefHat,         label: 'Cocina',        to: '/cocina' },
+    { icon: Users,           label: 'Salón — Mesas', to: '/mozo' },
+    { icon: LayoutGrid,      label: 'Configurar mesas', to: '/admin/mesas' },
     { icon: Receipt,         label: 'Comprobantes',  to: '/admin/comprobantes' },
     { icon: Users,           label: 'Usuarios',      to: '/admin/usuarios' },
     { icon: BarChart3,       label: 'Gerencial',     to: '/dashboard' },
@@ -32,6 +35,7 @@ const NAV = {
     { icon: CreditCard,      label: 'Pagos',        to: '/recepcion/pagos' },
     { icon: Wallet,          label: 'Caja diaria',  to: '/recepcion/caja' },
     { icon: ChefHat,         label: 'Cocina',       to: '/cocina' },
+    { icon: Users,           label: 'Salón — Mesas', to: '/mozo' },
     { icon: Receipt,         label: 'Comprobantes', to: '/recepcion/comprobantes' },
   ],
   cliente: [
@@ -53,6 +57,10 @@ const NAV_COCINERO = [
   { icon: ChefHat, label: 'Cocina', to: '/cocina', end: true },
 ]
 
+const NAV_MOZO = [
+  { icon: Users, label: 'Salón — Mesas', to: '/mozo', end: true },
+]
+
 const ROLE_LABEL = {
   administrador: 'Administrador',
   recepcionista: 'Recepcionista',
@@ -60,6 +68,7 @@ const ROLE_LABEL = {
   gerente:       'Gerente',
   contador:      'Contador',
   cocinero:      'Cocinero',
+  mozo:          'Mozo',
 }
 
 export default function Sidebar({ collapsed, setCollapsed, mobileOpen, setMobileOpen }) {
@@ -73,7 +82,9 @@ export default function Sidebar({ collapsed, setCollapsed, mobileOpen, setMobile
     return () => window.removeEventListener('resize', fn)
   }, [])
 
-  const items   = user?.role === 'cocinero' ? NAV_COCINERO : (NAV[user?.role] || [])
+  const items   = user?.role === 'cocinero' ? NAV_COCINERO
+                : user?.role === 'mozo'     ? NAV_MOZO
+                : (NAV[user?.role] || [])
   const initial = user?.name?.charAt(0)?.toUpperCase() || 'U'
   const sideW   = collapsed ? 68 : 260
   const translateX = (!isDesktop && !mobileOpen) ? '-100%' : '0'

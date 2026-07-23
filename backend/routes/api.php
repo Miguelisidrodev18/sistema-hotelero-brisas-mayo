@@ -8,6 +8,7 @@ use App\Http\Controllers\ExportController;
 use App\Http\Controllers\HabitacionController;
 use App\Http\Controllers\HabitacionImagenController;
 use App\Http\Controllers\HuespedController;
+use App\Http\Controllers\MesaController;
 use App\Http\Controllers\PagoController;
 use App\Http\Controllers\PedidoController;
 use App\Http\Controllers\PedidoCulqiController;
@@ -95,18 +96,36 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post  ('/pedidos/{pedido}/culqi',           [PedidoCulqiController::class, 'charge']);
     Route::post  ('/pedidos/{pedido}/pagar',           [PedidoController::class, 'pagar']);
 
-    // Cocina (admin + recepcionista + cocinero)
-    Route::middleware('role:administrador,recepcionista,cocinero')->group(function () {
+    // Cocina (admin + recepcionista + cocinero + mozo) — ver pedidos activos
+    Route::middleware('role:administrador,recepcionista,cocinero,mozo')->group(function () {
         Route::get   ('/pedidos',                      [PedidoController::class, 'index']);
         Route::get   ('/pedidos/todos',                [PedidoController::class, 'todos']);
+        Route::patch ('/pedidos/{pedido}/entregado',   [PedidoController::class, 'entregado']);
+    });
+
+    // Cocina — preparar y marcar listo (tarea exclusiva de cocina)
+    Route::middleware('role:administrador,recepcionista,cocinero')->group(function () {
         Route::patch ('/pedidos/{pedido}/preparando',  [PedidoController::class, 'preparando']);
         Route::patch ('/pedidos/{pedido}/listo',       [PedidoController::class, 'listo']);
-        Route::patch ('/pedidos/{pedido}/entregado',   [PedidoController::class, 'entregado']);
     });
 
     // Comprobantes de pedidos pagados — admin/recepción (caja)
     Route::middleware('role:administrador,recepcionista')->group(function () {
         Route::get('/pedidos/pagados', [PedidoController::class, 'pagados']);
+    });
+
+    // Mesas del restaurante — mozo gestiona asignación y estado
+    Route::middleware('role:administrador,recepcionista,mozo')->group(function () {
+        Route::get   ('/mesas',                 [MesaController::class, 'index']);
+        Route::patch ('/mesas/{mesa}/ocupar',   [MesaController::class, 'ocupar']);
+        Route::patch ('/mesas/{mesa}/liberar',  [MesaController::class, 'liberar']);
+    });
+
+    // Mesas — CRUD solo administrador
+    Route::middleware('role:administrador')->group(function () {
+        Route::post  ('/mesas',          [MesaController::class, 'store']);
+        Route::put   ('/mesas/{mesa}',   [MesaController::class, 'update']);
+        Route::delete('/mesas/{mesa}',   [MesaController::class, 'destroy']);
     });
 
     // Huéspedes de reserva

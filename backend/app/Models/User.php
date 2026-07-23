@@ -46,4 +46,9 @@ class User extends Authenticatable
     {
         return $this->role === 'cliente';
     }
+
+    public function isMozo(): bool
+    {
+        return $this->role === 'mozo';
+    }
 }

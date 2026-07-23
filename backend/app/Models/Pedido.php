@@ -6,7 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 
 class Pedido extends Model
 {
-    protected $fillable = ['user_id', 'codigo', 'estado', 'metodo_pago', 'pagado', 'total', 'notas'];
+    protected $fillable = ['user_id', 'mesa_id', 'codigo', 'estado', 'metodo_pago', 'pagado', 'total', 'notas'];
 
     protected $casts = ['pagado' => 'boolean', 'total' => 'decimal:2'];
 
@@ -18,5 +18,10 @@ class Pedido extends Model
     public function user()
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function mesa()
+    {
+        return $this->belongsTo(Mesa::class);
     }
 }

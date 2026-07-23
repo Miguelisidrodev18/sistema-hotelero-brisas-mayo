@@ -43,6 +43,8 @@ import Cocheras            from '../pages/admin/Cocheras'
 import MisCocheras         from '../pages/cliente/MisCocheras'
 import Cocina              from '../pages/cocina/Cocina'
 import ComprobantesPedidos from '../pages/recepcion/ComprobantesPedidos'
+import Mozo                from '../pages/mozo/Mozo'
+import Mesas                from '../pages/admin/Mesas'
 
 // Placeholder for unbuilt pages
 function Placeholder({ title }) {
@@ -80,6 +82,8 @@ function GuestRoute({ children }) {
       recepcionista: '/recepcion',
       contador:      '/dashboard',
       gerente:       '/dashboard',
+      cocinero:      '/cocina',
+      mozo:          '/mozo',
     }
     return <Navigate to={home[user.role] ?? '/reservas'} replace />
   }
@@ -121,6 +125,7 @@ export default function AppRouter() {
             <Route path="tarifas"         element={<TarifasTemporada />} />
             <Route path="descuentos"      element={<CodigosDescuento />} />
             <Route path="platos"          element={<Platos />} />
+            <Route path="mesas"           element={<Mesas />} />
             <Route path="comprobantes"    element={<ComprobantesPedidos />} />
           </Route>
 
@@ -158,6 +163,15 @@ export default function AppRouter() {
             </PrivateRoute>
           }>
             <Route index element={<Cocina />} />
+          </Route>
+
+          {/* ── Mozo ── */}
+          <Route path="/mozo" element={
+            <PrivateRoute roles={['administrador', 'recepcionista', 'mozo']}>
+              <AppLayout />
+            </PrivateRoute>
+          }>
+            <Route index element={<Mozo />} />
           </Route>
 
           {/* ── Gerente / Contador ── */}
